@@ -174,7 +174,9 @@ OUTLINE_DECODE_BUFFER bool EqualsSameDimensions(const FNameEntry& Entry, FNameSt
 /** Remember to update natvis if you change these */
 enum { FNameMaxBlockBits = 13 }; // Limit block array a bit, still allowing 8k * block size = 1GB - 2G of FName entry data
 enum { FNameBlockOffsetBits = 16 };
+// 最大的名字块数目 8192
 enum { FNameMaxBlocks = 1 << FNameMaxBlockBits };
+// 最大的块偏移 64K
 enum { FNameBlockOffsets = 1 << FNameBlockOffsetBits };
 
 /** An unpacked FNameEntryId */
@@ -270,6 +272,7 @@ class FNameEntryAllocator
 {
 public:
 	enum { Stride = alignof(FNameEntry) };
+	// 块大小 64K * 4 = 256K
 	enum { BlockSizeBytes = Stride * FNameBlockOffsets };
 
 	/** Initializes all member variables. */
@@ -1987,6 +1990,7 @@ int32 FName::Compare( const FName& Other ) const
 	return CompareDifferentIdsAlphabetically(ComparisonIndex, Other.ComparisonIndex);
 }
 
+// 拷贝除数字部分的名字到TCHAR缓冲区并且返回字符串长度，不分配内存
 uint32 FName::GetPlainNameString(TCHAR(&OutName)[NAME_SIZE]) const
 {
 	const FNameEntry& Entry = *GetDisplayNameEntry();
@@ -1994,31 +1998,38 @@ uint32 FName::GetPlainNameString(TCHAR(&OutName)[NAME_SIZE]) const
 	return Entry.GetNameLength();
 }
 
+// 获取没有数字部分的名称作为动态分配的字符串
 FString FName::GetPlainNameString() const
 {
 	return GetDisplayNameEntry()->GetPlainNameString();
 }
 
+// 拷贝除数字部分的ANSI字符的名字，只用于ANSI字符的FNames，不分配内存
 void FName::GetPlainANSIString(ANSICHAR(&AnsiName)[NAME_SIZE]) const
 {
 	GetDisplayNameEntry()->GetAnsiName(AnsiName);
 }
 
+// 拷贝除数字部分的宽字符名字，只用于宽字符的FNames，不分配内存
 void FName::GetPlainWIDEString(WIDECHAR(&WideName)[NAME_SIZE]) const
 {
 	GetDisplayNameEntry()->GetWideName(WideName);
 }
 
+// 得到名字的比较入口
 const FNameEntry* FName::GetComparisonNameEntry() const
 {
 	return &GetNamePool().Resolve(GetComparisonIndex());
 }
 
+// 得到名字的显示入口
 const FNameEntry* FName::GetDisplayNameEntry() const
 {
+	// 通过显示索引，从名字池中得到对应的入口
 	return &GetNamePool().Resolve(GetDisplayIndex());
 }
 
+// 将名字转换成可读的字符串
 FString FName::ToString() const
 {
 	if (GetNumber() == NAME_NO_NUMBER_INTERNAL)
@@ -2032,32 +2043,40 @@ FString FName::ToString() const
 	return Out;
 }
 
+// 将FName转换成一个可读的格式
 void FName::ToString(FString& Out) const
 {
 	// A version of ToString that saves at least one string copy
 	const FNameEntry* const NameEntry = GetDisplayNameEntry();
-
+	// 如果是空实例号
 	if (GetNumber() == NAME_NO_NUMBER_INTERNAL)
 	{
+		// 创建一个名字长度的空字符串
 		Out.Empty(NameEntry->GetNameLength());
+		// 把名字放进去
 		NameEntry->AppendNameToString(Out);
 	}	
 	else
 	{
+		// 创建一个名字长度+6的空字符串
 		Out.Empty(NameEntry->GetNameLength() + 6);
+		// 先把名字放进去
 		NameEntry->AppendNameToString(Out);
-
+		// 放入下划线
 		Out += TEXT('_');
+		// 放入实例号
 		Out.AppendInt(NAME_INTERNAL_TO_EXTERNAL(GetNumber()));
 	}
 }
 
+// 将FName转换成一个可读的格式
 void FName::ToString(FStringBuilderBase& Out) const
 {
 	Out.Reset();
 	AppendString(Out);
 }
 
+// 得到字符的数目，不包括null终止符
 uint32 FName::GetStringLength() const
 {
 	const FNameEntry& Entry = *GetDisplayNameEntry();
@@ -2077,6 +2096,7 @@ uint32 FName::GetStringLength() const
 	}
 }
 
+// 
 uint32 FName::ToString(TCHAR* Out, uint32 OutSize) const
 {
 	const FNameEntry& Entry = *GetDisplayNameEntry();
@@ -2101,11 +2121,13 @@ uint32 FName::ToString(TCHAR* Out, uint32 OutSize) const
 	}
 }
 
+// 将FName转换成可读格式，并追加到一个现有的字符串后面
 void FName::AppendString(FString& Out) const
 {
 	const FNameEntry* const NameEntry = GetDisplayNameEntry();
-
+	// 通过名字入口追加到字符串后面
 	NameEntry->AppendNameToString( Out );
+	// 如果Number不是默认的，就追加Number
 	if (GetNumber() != NAME_NO_NUMBER_INTERNAL)
 	{
 		Out += TEXT('_');
@@ -2113,6 +2135,7 @@ void FName::AppendString(FString& Out) const
 	}
 }
 
+// 将FName转换成可读格式，并追加到一个现有的字符串后面
 void FName::AppendString(FStringBuilderBase& Out) const
 {
 	GetDisplayNameEntry()->AppendNameToString(Out);
@@ -2124,6 +2147,7 @@ void FName::AppendString(FStringBuilderBase& Out) const
 	}
 }
 
+// 将ANSI FName转换成可读格式并附加到字符串生成器
 bool FName::TryAppendAnsiString(FAnsiStringBuilderBase& Out) const
 {
 	const FNameEntry* const NameEntry = GetDisplayNameEntry();
@@ -2132,7 +2156,7 @@ bool FName::TryAppendAnsiString(FAnsiStringBuilderBase& Out) const
 	{
 		return false;
 	}
-
+	// 转换成Ansi格式
 	NameEntry->AppendAnsiNameToString(Out);
 
 	const int32 InternalNumber = GetNumber();
@@ -2154,6 +2178,7 @@ FString FName::SafeString(FNameEntryId InDisplayIndex, int32 InstanceNumber)
 	return FName(InDisplayIndex, InDisplayIndex, InstanceNumber).ToString();
 }
 
+// 检查以确保给定的类似名称的字符串遵循Unreal要求的规则
 bool FName::IsValidXName(const FName InName, const FString& InInvalidChars, FText* OutReason, const FText* InErrorCtx)
 {
 	TStringBuilder<FName::StringBufferSize> NameStr;
@@ -2161,16 +2186,19 @@ bool FName::IsValidXName(const FName InName, const FString& InInvalidChars, FTex
 	return IsValidXName(FStringView(NameStr), InInvalidChars, OutReason, InErrorCtx);
 }
 
+// 检查以确保给定的类似名称的字符串遵循Unreal要求的规则
 bool FName::IsValidXName(const TCHAR* InName, const FString& InInvalidChars, FText* OutReason, const FText* InErrorCtx)
 {
 	return IsValidXName(FStringView(InName), InInvalidChars, OutReason, InErrorCtx);
 }
 
+// 检查以确保给定的类似名称的字符串遵循Unreal要求的规则
 bool FName::IsValidXName(const FString& InName, const FString& InInvalidChars, FText* OutReason, const FText* InErrorCtx)
 {
 	return IsValidXName(FStringView(InName), InInvalidChars, OutReason, InErrorCtx);
 }
 
+// 检查以确保给定的类似名称的字符串遵循Unreal要求的规则
 bool FName::IsValidXName(const FStringView& InName, const FString& InInvalidChars, FText* OutReason, const FText* InErrorCtx)
 {
 	if (InName.IsEmpty() || InInvalidChars.IsEmpty())
@@ -2179,8 +2207,10 @@ bool FName::IsValidXName(const FStringView& InName, const FString& InInvalidChar
 	}
 
 	// See if the name contains invalid characters.
+	// 检查name是否包含非法字符
 	FString MatchedInvalidChars;
 	TSet<TCHAR> AlreadyMatchedInvalidChars;
+	// 遍历非法字符，然后加入一个set
 	for (const TCHAR InvalidChar : InInvalidChars)
 	{
 		int32 InvalidCharIndex = INDEX_NONE;
@@ -2191,6 +2221,7 @@ bool FName::IsValidXName(const FStringView& InName, const FString& InInvalidChar
 		}
 	}
 
+	// 是否包含非法字符
 	if (MatchedInvalidChars.Len())
 	{
 		if (OutReason)
@@ -2206,6 +2237,8 @@ bool FName::IsValidXName(const FStringView& InName, const FString& InInvalidChar
 	return true;
 }
 
+// 
+// 找到对应的入口，并将String附加到字符串后面
 FStringBuilderBase& operator<<(FStringBuilderBase& Builder, FNameEntryId Id)
 {
 	FName::GetEntry(Id)->AppendNameToString(Builder);

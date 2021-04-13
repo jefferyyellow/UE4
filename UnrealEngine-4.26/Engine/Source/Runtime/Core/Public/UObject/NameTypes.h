@@ -32,6 +32,7 @@
 class FText;
 
 /** Maximum size of name. */
+// name的最大尺寸
 enum {NAME_SIZE	= 1024};
 
 /** Opaque id to a deduplicated name */
@@ -102,9 +103,12 @@ typedef FNameEntryId NAME_INDEX;
 /** Externally, the instance number to represent no instance number is NAME_NO_NUMBER, 
     but internally, we add 1 to indices, so we use this #define internally for 
 	zero'd memory initialization will still make NAME_None as expected */
+// 在外部，不代表任何实例的实例号是NAME_NO_NUMBE
+// 但是在内部，我们将1加到索引，因此我们在内部使用该#define进行零位内存初始化仍将使NAME_None符合预期
 #define NAME_NO_NUMBER_INTERNAL	0
 
 /** Conversion routines between external representations and internal */
+// 显示和内部的转换宏
 #define NAME_INTERNAL_TO_EXTERNAL(x) (x - 1)
 #define NAME_EXTERNAL_TO_INTERNAL(x) (x + 1)
 
@@ -122,12 +126,14 @@ typedef FNameEntryId NAME_INDEX;
 #define INVALID_NAME_CHARACTERS			TEXT("\"' ,\n\r\t")
 
 /** These characters cannot be used in object names */
+// 下面的字符不能用于object的名字
 #define INVALID_OBJECTNAME_CHARACTERS	TEXT("\"' ,/.:|&!~\n\r\t@#(){}[]=;^%$`")
 
 /** These characters cannot be used in ObjectPaths, which includes both the package path and part after the first . */
 #define INVALID_OBJECTPATH_CHARACTERS	TEXT("\"' ,|&!~\n\r\t@#(){}[]=;^%$`")
 
 /** These characters cannot be used in long package names */
+// 下面字符不能用于长package的名字
 #define INVALID_LONGPACKAGE_CHARACTERS	TEXT("\\:*?\"<>|' ,.&!~\n\r\t@#")
 
 /** These characters can be used in relative directory names (lowercase versions as well) */
@@ -223,6 +229,7 @@ public:
 	CORE_API void GetWideName(WIDECHAR(&OutName)[NAME_SIZE]) const;
 
 	/** Copy name to a dynamically allocated FString. */
+	// 将name拷贝到一个动态分配得FString
 	CORE_API FString GetPlainNameString() const;
 
 	/** Copy name to a FStringBuilderBase. */
@@ -403,12 +410,14 @@ struct FScriptName
 class CORE_API FName
 {
 public:
+	// 得到比较索引
 	FORCEINLINE FNameEntryId GetComparisonIndex() const
 	{
 		checkName(IsWithinBounds(ComparisonIndex));
 		return ComparisonIndex;
 	}
 
+	// 得到显示索引
 	FORCEINLINE FNameEntryId GetDisplayIndex() const
 	{
 		const FNameEntryId Index = GetDisplayIndexFast();
@@ -427,18 +436,23 @@ public:
 	}
 	
 	/** Get name without number part as a dynamically allocated string */
+	// 获取没有数字部分的名称作为动态分配的字符串
 	FString GetPlainNameString() const;
 
 	/** Convert name without number part into TCHAR buffer and returns string length. Doesn't allocate. */
+	// 拷贝除数字部分的名字到TCHAR缓冲区并且返回字符串长度，不分配内存
 	uint32 GetPlainNameString(TCHAR(&OutName)[NAME_SIZE]) const;
 
 	/** Copy ANSI name without number part. Must *only* be used for ANSI FNames. Doesn't allocate. */
+	// 拷贝除数字部分的ANSI字符的名字，只用于ANSI字符的FNames，不分配内存
 	void GetPlainANSIString(ANSICHAR(&AnsiName)[NAME_SIZE]) const;
 
 	/** Copy wide name without number part. Must *only* be used for wide FNames. Doesn't allocate. */
+	// 拷贝除数字部分的宽字符名字，只用于宽字符的FNames，不分配内存
 	void GetPlainWIDEString(WIDECHAR(&WideName)[NAME_SIZE]) const;
-
+	// 得到名字的比较入口
 	const FNameEntry* GetComparisonNameEntry() const;
+	// 得到名字的显示入口
 	const FNameEntry* GetDisplayNameEntry() const;
 
 	/**
@@ -446,6 +460,7 @@ public:
 	 *
 	 * @return String representation of the name
 	 */
+	// 将名字转换成可读的字符串
 	FString ToString() const;
 
 	/**
@@ -453,6 +468,7 @@ public:
 	 * 
 	 * @param Out String to fill with the string representation of the name
 	 */
+	// 将FName转换成一个可读的格式
 	void ToString(FString& Out) const;
 
 	/**
@@ -460,16 +476,20 @@ public:
 	 * 
 	 * @param Out StringBuilder to fill with the string representation of the name
 	 */
+	// 将FName转换成一个可读的格式
 	void ToString(FStringBuilderBase& Out) const;
 
 	/**
 	 * Get the number of characters, excluding null-terminator, that ToString() would yield
 	 */
+	// 得到字符的数目，不包括null终止符
 	uint32 GetStringLength() const;
 
 	/**
 	 * Buffer size required for any null-terminated FName string, i.e. [name] '_' [digits] '\0'
 	 */
+	// 最大的尺寸+终止符+数字占的位数
+	// 一个以null结尾的FName字符串需要的缓冲区大小，比如：[name]_[digits]再加终止符
 	static constexpr uint32 StringBufferSize = NAME_SIZE + 1 + 10; // NAME_SIZE includes null-terminator
 
 	/**
@@ -479,6 +499,9 @@ public:
 	 *
 	 * Note that a default constructed FName returns "None" instead of ""
 	 */
+	// 转换到string缓冲区防止动态分配并且返回字符串长度
+	// 如果OutLen小于GetStringLength() + 1就返回false,字符串缓冲区大小保护了成功
+	// 注意：一个默认的FName构造返回的是"None"而不是""（空字符串）
 	uint32 ToString(TCHAR* Out, uint32 OutSize) const;
 
 	template<int N>
@@ -492,6 +515,8 @@ public:
 	 * 
 	 * @param Out String to append with the string representation of the name
 	 */
+	// 将FName转换成可读格式，并追加到一个现有的字符串后面
+	// 输出字符串以附加名称的字符串表示形式
 	void AppendString(FString& Out) const;
 
 	/**
@@ -499,6 +524,8 @@ public:
 	 * 
 	 * @param Out StringBuilder to append with the string representation of the name
 	 */
+	// 将FName转换成可读格式，并追加到一个现有的字符串后面
+	// StringBuilder以附加名称的字符串表示形式
 	void AppendString(FStringBuilderBase& Out) const;
 
 	/**
@@ -508,17 +535,20 @@ public:
 	 *
 	 * @return Whether the string is ANSI. A return of false indicates that the string was wide and was not written.
 	 */
+	// 将ANSI FName转换成可读格式并附加到字符串生成器
 	bool TryAppendAnsiString(FAnsiStringBuilderBase& Out) const;
 
 	/**
 	 * Check to see if this FName matches the other FName, potentially also checking for any case variations
 	 */
+	// 检查该FName是否和另外一个FName匹配，可能还会检查任何大小写变化
 	FORCEINLINE bool IsEqual(const FName& Other, const ENameCase CompareMethod = ENameCase::IgnoreCase, const bool bCompareNumber = true ) const
 	{
 		return ((CompareMethod == ENameCase::IgnoreCase) ? ComparisonIndex == Other.ComparisonIndex : GetDisplayIndexFast() == Other.GetDisplayIndexFast())
 			&& (!bCompareNumber || GetNumber() == Other.GetNumber());
 	}
 
+	// 检查该FName是否和另外一个FName相等
 	FORCEINLINE bool operator==(FName Other) const
 	{
 #if PLATFORM_64BITS && !WITH_CASE_PRESERVING_NAME
@@ -557,12 +587,14 @@ public:
 	}
 
 	/** Fast non-alphabetical order that is only stable during this process' lifetime. */
+	// 快速的非字母顺序，仅在此进程的生存期内保持稳定。
 	FORCEINLINE bool FastLess(const FName& Other) const
 	{
 		return CompareIndexes(Other) < 0;
 	}
 
 	/** Slow alphabetical order that is stable / deterministic over process runs. */
+	// 缓慢的字母顺序，在进程运行中是稳定的/确定的。
 	FORCEINLINE bool LexicalLess(const FName& Other) const
 	{
 		return Compare(Other) < 0;
@@ -584,9 +616,12 @@ public:
 	 * All FNames are valid except for stomped memory, dangling pointers, etc.
 	 * Should only be used to investigate such bugs and not in production code.
 	 */
+	// 所有的FNames都是有效的除了移动的内存，悬空的指针等，等等。
+	// 只应用于调查此类错误，而不应用于生产代码中。
 	bool IsValid() const { return IsWithinBounds(ComparisonIndex); }
 
 	/** Paranoid sanity check, same as IsValid() */
+	// 和IsValid一样
 	bool IsValidIndexFast() const { return IsValid(); }
 
 
@@ -600,6 +635,7 @@ public:
 	 *
 	 * @return	true if the name is valid
 	 */
+	// 检查以确保给定的类似名称的字符串遵循Unreal要求的规则
 	static bool IsValidXName( const FName InName, const FString& InInvalidChars, FText* OutReason = nullptr, const FText* InErrorCtx = nullptr );
 	static bool IsValidXName( const TCHAR* InName, const FString& InInvalidChars, FText* OutReason = nullptr, const FText* InErrorCtx = nullptr );
 	static bool IsValidXName( const FString& InName, const FString& InInvalidChars, FText* OutReason = nullptr, const FText* InErrorCtx = nullptr );
@@ -614,6 +650,7 @@ public:
 	 *
 	 * @return	true if the name is valid
 	 */
+	// 检查以确保给定的类似名称的字符串遵循Unreal要求的规则
 	bool IsValidXName( const FString& InInvalidChars = INVALID_NAME_CHARACTERS, FText* OutReason = nullptr, const FText* InErrorCtx = nullptr ) const
 	{
 		return IsValidXName(*this, InInvalidChars, OutReason, InErrorCtx);
@@ -627,6 +664,7 @@ public:
 	 *
 	 * @return	true if the name is valid
 	 */
+	// 检查以确保给定的类似名称的字符串遵循Unreal要求的规则
 	bool IsValidXName( FText& OutReason, const FString& InInvalidChars = INVALID_NAME_CHARACTERS ) const
 	{
 		return IsValidXName(*this, InInvalidChars, &OutReason);
@@ -639,6 +677,8 @@ public:
 	 *
 	 * @return	true if the name is valid
 	 */
+	// 接受一个FName并检查它是否遵循虚幻对象名称的要求。
+	// INVALID_OBJECTNAME_CHARACTERS：包含了不能成为对象名的字符
 	bool IsValidObjectName( FText& OutReason ) const
 	{
 		return IsValidXName(*this, INVALID_OBJECTNAME_CHARACTERS, &OutReason);
@@ -651,7 +691,8 @@ public:
 	 * @param	bIsGroupName	if true, check legality for a group name, else check legality for a package name
 	 *
 	 * @return	true if the name is valid
-	 */
+	 */ 
+	// 接受一个FName并检查它是否遵循虚幻对package或group名字的要求
 	bool IsValidGroupName( FText& OutReason, bool bIsGroupName=false ) const
 	{
 		return IsValidXName(*this, INVALID_LONGPACKAGE_CHARACTERS, &OutReason);
@@ -663,6 +704,7 @@ public:
 	 * @param	Other	Name to compare this against
 	 * @return	< 0 is this < Other, 0 if this == Other, > 0 if this > Other
 	 */
+	// 比较名称和传入的名称。排序按字母顺序升序
 	int32 Compare( const FName& Other ) const;
 
 	/**
@@ -671,6 +713,7 @@ public:
 	 * @param	Other	Name to compare this against
 	 * @return	< 0 is this < Other, 0 if this == Other, > 0 if this > Other
 	 */
+	// 快速使用索引将名称与传入的名称进行比较。 排序是分配顺序升序。
 	FORCEINLINE int32 CompareIndexes(const FName& Other) const
 	{
 		if (int32 ComparisonDiff = ComparisonIndex.CompareFast(Other.ComparisonIndex))
@@ -686,6 +729,7 @@ public:
 	 *
 	 * @param N The hardcoded value the string portion of the name will have. The number portion will be NAME_NO_NUMBER
 	 */
+	// 使用一个硬编码的字符串索引来创建一个FName
 	FORCEINLINE FName(EName Ename) : FName(Ename, NAME_NO_NUMBER_INTERNAL) {}
 
 	/**
@@ -694,6 +738,7 @@ public:
 	 * @param N The hardcoded value the string portion of the name will have
 	 * @param InNumber The hardcoded value for the number portion of the name
 	 */
+	// 使用一个硬编码的字符串索引和实例来创建一个FName
 	FORCEINLINE FName(EName Ename, int32 InNumber)
 		: ComparisonIndex(FNameEntryId::FromEName(Ename))
 #if WITH_CASE_PRESERVING_NAME
@@ -710,6 +755,7 @@ public:
 	 * @param Other The FName to take the string values from
 	 * @param InNumber The hardcoded value for the number portion of the name
 	 */
+	// 从一个存在的字符串创建一个FName，但是是不同的实例
 	FORCEINLINE FName( const FName& Other, int32 InNumber )
 		: ComparisonIndex( Other.ComparisonIndex )
 #if WITH_CASE_PRESERVING_NAME
@@ -908,12 +954,15 @@ public:
 private:
 
 	/** Index into the Names array (used to find String portion of the string/number pair used for comparison) */
+	// 名字数组的索引（用于查找用于比较的字符串/数字对中的“字符串”部分）
 	FNameEntryId	ComparisonIndex;
 #if WITH_CASE_PRESERVING_NAME
 	/** Index into the Names array (used to find String portion of the string/number pair used for display) */
+	// 名字数组的索引（用于查找用于显示的字符串/数字对中的“字符串”部分）
 	FNameEntryId	DisplayIndex;
 #endif // WITH_CASE_PRESERVING_NAME
 	/** Number portion of the string/number pair (stored internally as 1 more than actual, so zero'd memory will be the default, no-instance case) */
+	// 字符串/数字对的数字部分(内部存储为比实际多1的存储，因此零内存将是默认的无实例情况)
 	uint32			Number;
 
 #if PLATFORM_64BITS && !WITH_CASE_PRESERVING_NAME
@@ -929,6 +978,7 @@ private:
 	friend const TCHAR* DebugFName(int32, int32);
 	friend const TCHAR* DebugFName(FName&);
 
+	// 得到显示索引
 	FORCEINLINE FNameEntryId GetDisplayIndexFast() const
 	{
 #if WITH_CASE_PRESERVING_NAME

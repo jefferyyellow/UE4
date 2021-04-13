@@ -56,6 +56,7 @@ public:
 	}
 
 	/** Advances iterator to the next element in the container. */
+	// 往前移动迭代器到容器的下一个元素
 	TIndexedContainerIterator& operator++()
 	{
 		++Index;
@@ -69,6 +70,7 @@ public:
 	}
 
 	/** Moves iterator to the previous element in the container. */
+	// 移动迭代器到容器的前一个元素
 	TIndexedContainerIterator& operator--()
 	{
 		--Index;
@@ -105,41 +107,47 @@ public:
 		return Tmp -= Offset;
 	}
 
+	// 得到数组对应索引的值
 	ElementType& operator* () const
 	{
 		return Container[ Index ];
 	}
-
+	// 得到数组对应索引的值
 	ElementType* operator->() const
 	{
 		return &Container[ Index ];
 	}
 
 	/** conversion to "bool" returning true if the iterator has not reached the last element. */
+	// 如果迭代器的包含的索引是否为真，就返回true.
 	FORCEINLINE explicit operator bool() const
 	{
 		return Container.IsValidIndex(Index);
 	}
 
 	/** Returns an index to the current element. */
+	// 返回当前元素的索引
 	SizeType GetIndex() const
 	{
 		return Index;
 	}
 
 	/** Resets the iterator to the first element. */
+	// 将迭代器设置到最开始的元素
 	void Reset()
 	{
 		Index = 0;
 	}
 
 	/** Sets iterator to the last element. */
+	// 将迭代器设置到最后的end
 	void SetToEnd()
 	{
 		Index = Container.Num();
 	}
 	
 	/** Removes current element in array. This invalidates the current iterator value and it must be incremented */
+	// 移除数组中当前元素,这会使当前的迭代器值无效，并且其必须递增
 	void RemoveCurrent()
 	{
 		Container.RemoveAt(Index);
@@ -169,6 +177,7 @@ FORCEINLINE TIndexedContainerIterator<ContainerType, ElementType, SizeType> oper
 	 * Pointer-like iterator type for ranged-for loops which checks that the
 	 * container hasn't been resized during iteration.
 	 */
+	// 类似指针一样的类型范围for的循环，这个可以检查容器在遍历过程中是否调整过大小
 	template <typename ElementType, typename SizeType>
 	struct TCheckedPointerIterator
 	{
@@ -176,7 +185,7 @@ FORCEINLINE TIndexedContainerIterator<ContainerType, ElementType, SizeType> oper
 		// C++ ranged-for syntax.  For example, it does not provide post-increment ++ nor ==.
 		//
 		// We do add an operator-- to help FString implementation
-
+		// 该迭代器类型只支持C++ for 范围语法的最小的功能，比如不提供后置的++和==
 		explicit TCheckedPointerIterator(const SizeType& InNum, ElementType* InPtr)
 			: Ptr       (InPtr)
 			, CurrentNum(InNum)
@@ -283,6 +292,13 @@ namespace UE4Array_Private
  * Caution: as noted below some methods are not safe for element types that require constructors.
  *
  **/
+/**
+* 模板动态数组
+* 一个动态大小的类型化元素数组。假定你的元素是可以重新分配的；比如.无需拷贝构造函数就能透明地将一个元素移动到新的内存中。
+* 主要的实现是通过向数组添加或删除其他元素，可以使指向TArray中元素的指针无效。删除元素是O(N)的复杂度，并且会使后面元素的索引无效。
+* 
+* 注意：如下所述，某些方法对于需要构造函数的元素类型并不安全。
+**/
 template<typename InElementType, typename InAllocator>
 class TArray
 {
@@ -305,6 +321,7 @@ public:
 	/**
 	 * Constructor, initializes element number counters.
 	 */
+	// 构造函数，默认的元素数目为0，容量为分配器的初始容量
 	FORCEINLINE TArray()
 		: ArrayNum(0)
 		, ArrayMax(AllocatorInstance.GetInitialCapacity())
@@ -317,10 +334,11 @@ public:
 	 * @param Count The number of elements to copy from Ptr.
 	 * @see Append
 	 */
+	// 从一个原始的数组初始化
 	FORCEINLINE TArray(const ElementType* Ptr, SizeType Count)
 	{
 		check(Ptr != nullptr || Count == 0);
-
+		// 将数据拷贝到空的数组中去
 		CopyToEmpty(Ptr, Count, 0, 0);
 	}
 
@@ -330,11 +348,14 @@ public:
 	/**
 	 * Initializer list constructor
 	 */
+	// 初始化列表构造
 	TArray(std::initializer_list<InElementType> InitList)
 	{
 		// This is not strictly legal, as std::initializer_list's iterators are not guaranteed to be pointers, but
 		// this appears to be the case on all of our implementations.  Also, if it's not true on a new implementation,
 		// it will fail to compile rather than behave badly.
+		// 这并不是严格合法的，因为不能保证std :: initializer_list的迭代器是指针，但是在我们所有的实现中似乎都是这种情况。
+		// 另外，如果在新的实现中不正确，它将无法编译而不是表现不佳。
 		CopyToEmpty(InitList.begin(), (SizeType)InitList.size(), 0, 0);
 	}
 
@@ -343,6 +364,7 @@ public:
 	 *
 	 * @param Other The source array to copy.
 	 */
+	// 带有改变了分配器的拷贝构造函数。 使用通用函数执行复制。
 	template <typename OtherElementType, typename OtherAllocator>
 	FORCEINLINE explicit TArray(const TArray<OtherElementType, OtherAllocator>& Other)
 	{
@@ -354,6 +376,7 @@ public:
 	 *
 	 * @param Other The source array to copy.
 	 */
+	// 拷贝构造，使用通用的函数执行拷贝
 	FORCEINLINE TArray(const TArray& Other)
 	{
 		CopyToEmpty(Other.GetData(), Other.Num(), 0, 0);
@@ -366,6 +389,7 @@ public:
 	 * @param ExtraSlack Tells how much extra memory should be preallocated
 	 *                   at the end of the array in the number of elements.
 	 */
+	// 拷贝构造，使用通用的函数执行拷贝，ExtraSlack告诉多少额外的内存在数组的尾部应该与分配出来,以元素数目的形式
 	FORCEINLINE TArray(const TArray& Other, SizeType ExtraSlack)
 	{
 		CopyToEmpty(Other.GetData(), Other.Num(), 0, ExtraSlack);
@@ -2582,15 +2606,19 @@ private:
 	}
 	FORCENOINLINE void ResizeForCopy(SizeType NewMax, SizeType PrevMax)
 	{
+		// 如果NewMax大小大于0，根据策略的话，应该是多少呢？
 		if (NewMax)
 		{
 			NewMax = AllocatorInstance.CalculateSlackReserve(NewMax, sizeof(ElementType));
 		}
+		// 如果新的容量比老的容量大
 		if (NewMax > PrevMax)
 		{
 			AllocatorInstance.ResizeAllocation(0, NewMax, sizeof(ElementType));
+			// 赋值新的容量
 			ArrayMax = NewMax;
 		}
+		// 如果比以前的还小，那就不萎缩了，就用原来的
 		else
 		{
 			ArrayMax = PrevMax;
@@ -2608,6 +2636,7 @@ private:
 	 *                   the end of the buffer. Counted in elements. Zero by
 	 *                   default.
 	 */
+	// 从一个数组将数据拷贝进该数组。使用最快的速度如果数据不需要构造
 	template <typename OtherElementType, typename OtherSizeType>
 	void CopyToEmpty(const OtherElementType* OtherData, OtherSizeType OtherNum, SizeType PrevMax, SizeType ExtraSlack)
 	{
@@ -2616,11 +2645,15 @@ private:
 
 		checkSlow(ExtraSlack >= 0);
 		ArrayNum = NewNum;
+		// 如果以前的，现在的，额外的其中一个不为0
 		if (OtherNum || ExtraSlack || PrevMax)
 		{
+			// 重新计算容量
 			ResizeForCopy(NewNum + ExtraSlack, PrevMax);
+			// 构造元素（拷贝构造或者位拷贝）
 			ConstructItems<ElementType>(GetData(), OtherData, OtherNum);
 		}
+		// 都是0的话，根本不需要拷贝，只是刷新下容量
 		else
 		{
 			ArrayMax = AllocatorInstance.GetInitialCapacity();
