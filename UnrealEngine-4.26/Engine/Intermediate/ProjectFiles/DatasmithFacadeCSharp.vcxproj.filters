@@ -1,0 +1,145 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="15.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <None Include="..\..\Source\Programs\Enterprise\Datasmith\DatasmithFacadeCSharp\DatasmithFacadeCSharp.Target.cs" />
+    <None Include="..\..\Source\Programs\Enterprise\Datasmith\DatasmithFacadeCSharp\DatasmithFacadeCSharp.Build.cs" />
+    <None Include="..\..\Source\Programs\Enterprise\Datasmith\DatasmithFacadeCSharp\DatasmithFacadeCSharp.i" />
+    <None Include="..\..\Source\Programs\Enterprise\Datasmith\DatasmithFacadeCSharp\FacadeHeaderHelper.py" />
+    <None Include="..\..\Source\Programs\Enterprise\Datasmith\DatasmithFacadeCSharp\ReadMe.txt" />
+    <Filter Include="Private">
+      <UniqueIdentifier>{7FD48D5D-9563-4F62-BBFC-61606FD7C402}</UniqueIdentifier>
+    </Filter>
+    <ClCompile Include="..\..\Source\Programs\Enterprise\Datasmith\DatasmithFacadeCSharp\Private\DatasmithFacadeCSharp.cpp">
+      <Filter>Private</Filter>
+    </ClCompile>
+    <ClInclude Include="..\..\Source\Programs\Enterprise\Datasmith\DatasmithFacadeCSharp\Private\DatasmithFacadeCSharp.h">
+      <Filter>Private</Filter>
+    </ClInclude>
+    <ClCompile Include="..\..\Source\Programs\Enterprise\Datasmith\DatasmithFacadeCSharp\Private\DatasmithFacadeDLL.cpp">
+      <Filter>Private</Filter>
+    </ClCompile>
+    <Filter Include="Public">
+      <UniqueIdentifier>{F6EACDD2-1547-46A7-9725-12CBE070AC8D}</UniqueIdentifier>
+    </Filter>
+    <None Include="..\..\Source\Programs\Enterprise\Datasmith\DatasmithFacadeCSharp\Public\DatasmithFacadeCSharp.cs">
+      <Filter>Public</Filter>
+    </None>
+    <None Include="..\..\Source\Programs\Enterprise\Datasmith\DatasmithFacadeCSharp\Public\DatasmithFacadeCSharpPINVOKE.cs">
+      <Filter>Public</Filter>
+    </None>
+    <None Include="..\..\Source\Programs\Enterprise\Datasmith\DatasmithFacadeCSharp\Public\EDatasmithFacadeMaterialExpressionType.cs">
+      <Filter>Public</Filter>
+    </None>
+    <None Include="..\..\Source\Programs\Enterprise\Datasmith\DatasmithFacadeCSharp\Public\FDatasmithFacadeActor.cs">
+      <Filter>Public</Filter>
+    </None>
+    <None Include="..\..\Source\Programs\Enterprise\Datasmith\DatasmithFacadeCSharp\Public\FDatasmithFacadeActorCamera.cs">
+      <Filter>Public</Filter>
+    </None>
+    <None Include="..\..\Source\Programs\Enterprise\Datasmith\DatasmithFacadeCSharp\Public\FDatasmithFacadeActorLight.cs">
+      <Filter>Public</Filter>
+    </None>
+    <None Include="..\..\Source\Programs\Enterprise\Datasmith\DatasmithFacadeCSharp\Public\FDatasmithFacadeActorMesh.cs">
+      <Filter>Public</Filter>
+    </None>
+    <None Include="..\..\Source\Programs\Enterprise\Datasmith\DatasmithFacadeCSharp\Public\FDatasmithFacadeAreaLight.cs">
+      <Filter>Public</Filter>
+    </None>
+    <None Include="..\..\Source\Programs\Enterprise\Datasmith\DatasmithFacadeCSharp\Public\FDatasmithFacadeBaseMaterial.cs">
+      <Filter>Public</Filter>
+    </None>
+    <None Include="..\..\Source\Programs\Enterprise\Datasmith\DatasmithFacadeCSharp\Public\FDatasmithFacadeDirectionalLight.cs">
+      <Filter>Public</Filter>
+    </None>
+    <None Include="..\..\Source\Programs\Enterprise\Datasmith\DatasmithFacadeCSharp\Public\FDatasmithFacadeDirectLink.cs">
+      <Filter>Public</Filter>
+    </None>
+    <None Include="..\..\Source\Programs\Enterprise\Datasmith\DatasmithFacadeCSharp\Public\FDatasmithFacadeElement.cs">
+      <Filter>Public</Filter>
+    </None>
+    <None Include="..\..\Source\Programs\Enterprise\Datasmith\DatasmithFacadeCSharp\Public\FDatasmithFacadeExpressionInput.cs">
+      <Filter>Public</Filter>
+    </None>
+    <None Include="..\..\Source\Programs\Enterprise\Datasmith\DatasmithFacadeCSharp\Public\FDatasmithFacadeExpressionParameter.cs">
+      <Filter>Public</Filter>
+    </None>
+    <None Include="..\..\Source\Programs\Enterprise\Datasmith\DatasmithFacadeCSharp\Public\FDatasmithFacadeExpressionParameterSwigImpl.cs">
+      <Filter>Public</Filter>
+    </None>
+    <None Include="..\..\Source\Programs\Enterprise\Datasmith\DatasmithFacadeCSharp\Public\FDatasmithFacadeKeyValueProperty.cs">
+      <Filter>Public</Filter>
+    </None>
+    <None Include="..\..\Source\Programs\Enterprise\Datasmith\DatasmithFacadeCSharp\Public\FDatasmithFacadeLightmassPortal.cs">
+      <Filter>Public</Filter>
+    </None>
+    <None Include="..\..\Source\Programs\Enterprise\Datasmith\DatasmithFacadeCSharp\Public\FDatasmithFacadeLog.cs">
+      <Filter>Public</Filter>
+    </None>
+    <None Include="..\..\Source\Programs\Enterprise\Datasmith\DatasmithFacadeCSharp\Public\FDatasmithFacadeMasterMaterial.cs">
+      <Filter>Public</Filter>
+    </None>
+    <None Include="..\..\Source\Programs\Enterprise\Datasmith\DatasmithFacadeCSharp\Public\FDatasmithFacadeMaterialExpression.cs">
+      <Filter>Public</Filter>
+    </None>
+    <None Include="..\..\Source\Programs\Enterprise\Datasmith\DatasmithFacadeCSharp\Public\FDatasmithFacadeMaterialExpressionBool.cs">
+      <Filter>Public</Filter>
+    </None>
+    <None Include="..\..\Source\Programs\Enterprise\Datasmith\DatasmithFacadeCSharp\Public\FDatasmithFacadeMaterialExpressionColor.cs">
+      <Filter>Public</Filter>
+    </None>
+    <None Include="..\..\Source\Programs\Enterprise\Datasmith\DatasmithFacadeCSharp\Public\FDatasmithFacadeMaterialExpressionFlattenNormal.cs">
+      <Filter>Public</Filter>
+    </None>
+    <None Include="..\..\Source\Programs\Enterprise\Datasmith\DatasmithFacadeCSharp\Public\FDatasmithFacadeMaterialExpressionFunctionCall.cs">
+      <Filter>Public</Filter>
+    </None>
+    <None Include="..\..\Source\Programs\Enterprise\Datasmith\DatasmithFacadeCSharp\Public\FDatasmithFacadeMaterialExpressionGeneric.cs">
+      <Filter>Public</Filter>
+    </None>
+    <None Include="..\..\Source\Programs\Enterprise\Datasmith\DatasmithFacadeCSharp\Public\FDatasmithFacadeMaterialExpressionScalar.cs">
+      <Filter>Public</Filter>
+    </None>
+    <None Include="..\..\Source\Programs\Enterprise\Datasmith\DatasmithFacadeCSharp\Public\FDatasmithFacadeMaterialExpressionTexture.cs">
+      <Filter>Public</Filter>
+    </None>
+    <None Include="..\..\Source\Programs\Enterprise\Datasmith\DatasmithFacadeCSharp\Public\FDatasmithFacadeMaterialExpressionTextureCoordinate.cs">
+      <Filter>Public</Filter>
+    </None>
+    <None Include="..\..\Source\Programs\Enterprise\Datasmith\DatasmithFacadeCSharp\Public\FDatasmithFacadeMaterialID.cs">
+      <Filter>Public</Filter>
+    </None>
+    <None Include="..\..\Source\Programs\Enterprise\Datasmith\DatasmithFacadeCSharp\Public\FDatasmithFacadeMaterialsUtils.cs">
+      <Filter>Public</Filter>
+    </None>
+    <None Include="..\..\Source\Programs\Enterprise\Datasmith\DatasmithFacadeCSharp\Public\FDatasmithFacadeMesh.cs">
+      <Filter>Public</Filter>
+    </None>
+    <None Include="..\..\Source\Programs\Enterprise\Datasmith\DatasmithFacadeCSharp\Public\FDatasmithFacadeMetaData.cs">
+      <Filter>Public</Filter>
+    </None>
+    <None Include="..\..\Source\Programs\Enterprise\Datasmith\DatasmithFacadeCSharp\Public\FDatasmithFacadePointLight.cs">
+      <Filter>Public</Filter>
+    </None>
+    <None Include="..\..\Source\Programs\Enterprise\Datasmith\DatasmithFacadeCSharp\Public\FDatasmithFacadeScene.cs">
+      <Filter>Public</Filter>
+    </None>
+    <None Include="..\..\Source\Programs\Enterprise\Datasmith\DatasmithFacadeCSharp\Public\FDatasmithFacadeSpotLight.cs">
+      <Filter>Public</Filter>
+    </None>
+    <None Include="..\..\Source\Programs\Enterprise\Datasmith\DatasmithFacadeCSharp\Public\FDatasmithFacadeTexture.cs">
+      <Filter>Public</Filter>
+    </None>
+    <None Include="..\..\Source\Programs\Enterprise\Datasmith\DatasmithFacadeCSharp\Public\FDatasmithFacadeUEPbrMaterial.cs">
+      <Filter>Public</Filter>
+    </None>
+    <None Include="..\..\Source\Programs\Enterprise\Datasmith\DatasmithFacadeCSharp\Public\FDatasmithFacadeUniqueNameProvider.cs">
+      <Filter>Public</Filter>
+    </None>
+    <None Include="..\..\Source\Programs\Enterprise\Datasmith\DatasmithFacadeCSharp\Public\IDatasmithExporterUIModule.cs">
+      <Filter>Public</Filter>
+    </None>
+    <None Include="..\..\Source\Programs\Enterprise\Datasmith\DatasmithFacadeCSharp\Public\IDirectLinkUI.cs">
+      <Filter>Public</Filter>
+    </None>
+  </ItemGroup>
+</Project>

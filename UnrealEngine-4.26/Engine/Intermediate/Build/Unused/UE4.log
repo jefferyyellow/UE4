@@ -1,0 +1,3 @@
+﻿  Creating makefile for UE4Editor (no existing makefile)
+C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\MSBuild\Microsoft\VC\v160\Microsoft.MakeFile.Targets(46,5): warning MSB5021: 终止任务可执行文件“cmd”及其子进程，因为已取消生成。
+C:\Program Files (x86)\Microsoft Visual Studio\2019\Enterprise\MSBuild\Microsoft\VC\v160\Microsoft.MakeFile.Targets(46,5): error MSB4181: “Exec”任务返回了 false，但未记录错误。
