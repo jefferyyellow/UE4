@@ -36,12 +36,15 @@ class FText;
 enum {NAME_SIZE	= 1024};
 
 /** Opaque id to a deduplicated name */
+// 唯一名字背后的ID
+// 名字是不能重复的
 struct FNameEntryId
 {
 	FNameEntryId() : Value(0) {}
 	FNameEntryId(ENoInit) {}
 
 	/** Slow alphabetical order that is stable / deterministic over process runs */
+	// 缓慢的字母顺序，在过程运行中是稳定/确定的
 	CORE_API int32 CompareLexical(FNameEntryId Rhs) const;
 	bool LexicalLess(FNameEntryId Rhs) const { return CompareLexical(Rhs) < 0; }
 
@@ -50,13 +53,16 @@ struct FNameEntryId
 	bool FastLess(FNameEntryId Rhs) const { return CompareFast(Rhs) < 0; }
 
 	/** Fast non-alphabetical order that is only stable during this process' lifetime */
+	// 快速的非字母顺序，仅在此过程的生命周期内保持稳定
 	bool operator<(FNameEntryId Rhs) const { return Value < Rhs.Value; }
 
 	/** Fast non-alphabetical order that is only stable during this process' lifetime */
+	// 快速的非字母顺序，仅在此过程的生命周期内保持稳定
 	bool operator>(FNameEntryId Rhs) const { return Rhs.Value < Value; }
 	bool operator==(FNameEntryId Rhs) const { return Value == Rhs.Value; }
 	bool operator!=(FNameEntryId Rhs) const { return Value != Rhs.Value; }
 
+	// 值是否为0，重载bool运算符
 	explicit operator bool() const { return Value != 0; }
 
 	UE_DEPRECATED(4.23, "NAME_INDEX is replaced by FNameEntryId, which is no longer a contiguous integer. "
@@ -65,19 +71,22 @@ struct FNameEntryId
 	operator int32() const;
 
 	/** Get process specific integer */
+	// 将名字入口转换成整数
 	uint32 ToUnstableInt() const { return Value; }
 
 	/** Create from unstable int produced by this process */
+	// 从一个uint32创建一个FNameEntryId
 	CORE_API static FNameEntryId FromUnstableInt(uint32 UnstableInt);
-
+	// 从一个Name中得到名字入口
 	FORCEINLINE static FNameEntryId FromEName(EName Ename)
 	{
 		return Ename == NAME_None ? FNameEntryId() : FromValidEName(Ename);
 	}
 
 private:
+	// 名字入口ID的值
 	uint32 Value;
-
+	// 从一个可用的Name中得到名字入口
 	CORE_API static FNameEntryId FromValidEName(EName Ename);
 };
 
@@ -167,6 +176,13 @@ enum EFindName
 ----------------------------------------------------------------------------*/
 
 /** Implementation detail exposed for debug visualizers */
+// 名字入口的头
+// 大小写敏感的情况下：
+// 1个位的宽字符标志位
+// 15个位的长度
+// 大小写不敏感的情况下：
+// 小写可能的Hash：5位
+// 10位的字符长度
 struct FNameEntryHeader
 {
 	uint16 bIsWide : 1;
@@ -182,13 +198,16 @@ struct FNameEntryHeader
 /**
  * A global deduplicated name stored in the global name table.
  */
+// 一个全局的唯一的名字，保存在全局名字表中
 struct FNameEntry
 {
 private:
 #if WITH_CASE_PRESERVING_NAME
 	FNameEntryId ComparisonId;
 #endif
+	// 名字入口头
 	FNameEntryHeader Header;
+	// 数据
 	union
 	{
 		ANSICHAR	AnsiName[NAME_SIZE];
@@ -202,11 +221,13 @@ private:
 
 public:
 	/** Returns whether this name entry is represented via WIDECHAR or ANSICHAR. */
+	// 返回是否是宽字符还是Ansi字符
 	FORCEINLINE bool IsWide() const
 	{
 		return Header.bIsWide;
 	}
 
+	// 字符串长度
 	FORCEINLINE int32 GetNameLength() const
 	{
 		return Header.Len;
@@ -769,6 +790,7 @@ public:
 	 * Create an FName from its component parts
 	 * Only call this if you *really* know what you're doing
 	 */
+	// 从他的各个组成部分中创建一个FName
 	FORCEINLINE FName( const FNameEntryId InComparisonIndex, const FNameEntryId InDisplayIndex, const int32 InNumber )
 		: ComparisonIndex( InComparisonIndex )
 #if WITH_CASE_PRESERVING_NAME
@@ -779,14 +801,17 @@ public:
 	}
 
 #if WITH_CASE_PRESERVING_NAME
+	// 从显示ID中获得比较ID
 	static FNameEntryId GetComparisonIdFromDisplayId(FNameEntryId DisplayId);
 #else
+	// 从显示ID中获得比较ID，比较ID就是显示ID
 	static FNameEntryId GetComparisonIdFromDisplayId(FNameEntryId DisplayId) { return DisplayId; }
 #endif
 
 	/**
 	 * Only call this if you *really* know what you're doing
 	 */
+	// 只有你真正知道自己在做什么的时候才调用该函数
 	static FName CreateFromDisplayId(FNameEntryId DisplayId, int32 Number)
 	{
 		return FName(GetComparisonIdFromDisplayId(DisplayId), DisplayId, Number);
@@ -795,6 +820,7 @@ public:
 	/**
 	 * Default constructor, initialized to None
 	 */
+	// 默认构造函数，初始化Number为没有实例的
 	FORCEINLINE FName()
 		: Number(NAME_NO_NUMBER_INTERNAL)
 	{
@@ -803,6 +829,7 @@ public:
 	/**
 	 * Scary no init constructor, used for something obscure in UObjectBase
 	 */
+	// 没有初始化的构造函数，
 	explicit FName(ENoInit)
 		: ComparisonIndex(NoInit)
 #if WITH_CASE_PRESERVING_NAME
@@ -817,10 +844,12 @@ public:
 	 * @param Name			Value for the string portion of the name
 	 * @param FindType		Action to take (see EFindName)
 	 */
-	FName(const WIDECHAR* Name, EFindName FindType=FNAME_Add);
+	 // 创建一个FName。如果FindType是FNAME_Find，并且name的字符串部分不是已经存在的，那么name将是NAME_None
+	FName(const WIDECHAR* Name, EFindName FindType = FNAME_Add);
 	FName(const ANSICHAR* Name, EFindName FindType=FNAME_Add);
 
 	/** Create FName from non-null string with known length  */
+	// 从一个以non-null结尾的已知长度的字符串中创建一个FName
 	FName(int32 Len, const WIDECHAR* Name, EFindName FindType=FNAME_Add);
 	FName(int32 Len, const ANSICHAR* Name, EFindName FindType=FNAME_Add);
 
@@ -843,6 +872,7 @@ public:
 	 * @param FindType Action to take (see EFindName)
 	 * @param bSplitName true if the trailing number should be split from the name when Number == NAME_NO_NUMBER_INTERNAL, or false to always use the name as-is
 	 */
+	// 创建一个FName。如果FindType是FNAME_Find，并且name的字符串部分不是已经存在的，那么name将是NAME_None
 	FName(const WIDECHAR* Name, int32 InNumber, EFindName FindType = FNAME_Add);
 	FName(const ANSICHAR* Name, int32 InNumber, EFindName FindType = FNAME_Add);
 	FName(int32 Len, const WIDECHAR* Name, int32 Number, EFindName FindType = FNAME_Add);
@@ -867,6 +897,7 @@ public:
 	 * @param FindType Action to take (see EFindName)
 	 * @param bSplitName true if the trailing number should be split from the name when Number == NAME_NO_NUMBER_INTERNAL, or false to always use the name as-is
 	 */
+	// 创建一个FName。如果FindType是FNAME_Find，并且name的字符串部分不是已经存在的，那么name将是NAME_None
 	FName( const TCHAR* Name, int32 InNumber, EFindName FindType, bool bSplitName);
 
 	/**
@@ -874,6 +905,7 @@ public:
 	 * number of 0 that does not attempt to split the FName into string and number portions. Also,
 	 * this version skips calculating the hashes of the names if possible
 	 */
+	// 加载它的名字表的时候
 	FName(const FNameEntrySerialized& LoadedEntry);
 
 	/**
@@ -882,6 +914,7 @@ public:
 	 * @param	Other	String to compare this name to
 	 * @return true if name matches the string, false otherwise
 	 */
+	// 等于操作符
 	bool operator==(const ANSICHAR* Other) const;
 	bool operator==(const WIDECHAR* Other) const;
 
@@ -891,6 +924,7 @@ public:
 	 * @param	Other	String to compare this name to
 	 * @return true if name does not match the string, false otherwise
 	 */
+	// 不等于操作符
 	template <typename CharType>
 	bool operator!=(const CharType* Other) const
 	{
@@ -903,25 +937,29 @@ public:
 	/**
 	 * @return Size of all name entries.
 	 */
+	// 所有名字入口的大小
 	static int32 GetNameEntryMemorySize();
 
 	/**
 	* @return Size of Name Table object as a whole
 	*/
+	// 名称表对象整体的大小
 	static int32 GetNameTableMemorySize();
 
 	/**
 	 * @return number of ansi names in name table
 	 */
+	// 名称表中ansi名称的数目
 	static int32 GetNumAnsiNames();
 
 	/**
 	 * @return number of wide names in name table
 	 */
+	// 名称表中wide名称的数目
 	static int32 GetNumWideNames();
 
 	static TArray<const FNameEntry*> DebugDump();
-
+	// 得到名称入口
 	static FNameEntry const* GetEntry(EName Ename);
 	static FNameEntry const* GetEntry(FNameEntryId Id);
 
@@ -939,9 +977,11 @@ public:
 	 *
 	 * @return	the sanitized version of the display name
 	 */
+	// 取出一个字符串，并将其分解成一个人类可读的字符串
 	static FString NameToDisplayString( const FString& InDisplayName, const bool bIsBool );
 
 	/** Get the EName that this FName represents or nullptr */
+	// 获取此FName表示的EName或nullptr
 	const EName* ToEName() const;
 
 	/** 
@@ -949,6 +989,8 @@ public:
 	
 		FName must not be used after teardown
 	 */
+	// 从系统中拆除，并释放所有的内存
+	// FName不应该在tear down以后再使用
 	static void TearDown();
 
 private:

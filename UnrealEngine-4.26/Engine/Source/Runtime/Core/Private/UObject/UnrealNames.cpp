@@ -42,6 +42,7 @@ PRAGMA_DISABLE_UNSAFE_TYPECAST_WARNINGS
 
 DEFINE_LOG_CATEGORY_STATIC(LogUnrealNames, Log, All);
 
+// 得到EName对应的字符串
 const TCHAR* LexToString(EName Ename)
 {
 	switch (Ename)
@@ -54,6 +55,7 @@ const TCHAR* LexToString(EName Ename)
 	}
 }
 
+// 得到名字入口中，名字数据的偏移
 int32 FNameEntry::GetDataOffset()
 {
 	return STRUCT_OFFSET(FNameEntry, AnsiName);
@@ -98,6 +100,7 @@ ANSICHAR* ConvertInPlace<WIDECHAR, ANSICHAR>(WIDECHAR* Str, uint32 Len)
 	return reinterpret_cast<ANSICHAR*>(Str);
 }
 
+// 名字缓冲区
 union FNameBuffer
 {
 	ANSICHAR AnsiName[NAME_SIZE];
@@ -180,6 +183,7 @@ enum { FNameMaxBlocks = 1 << FNameMaxBlockBits };
 enum { FNameBlockOffsets = 1 << FNameBlockOffsetBits };
 
 /** An unpacked FNameEntryId */
+// 一个没有打包（展开）的名字入口
 struct FNameEntryHandle
 {
 	uint32 Block = 0;
@@ -189,20 +193,22 @@ struct FNameEntryHandle
 		: Block(InBlock)
 		, Offset(InOffset)
 	{}
-
+	// 从一个入口ID初始化入口handle
 	FNameEntryHandle(FNameEntryId Id)
 		: Block(Id.ToUnstableInt() >> FNameBlockOffsetBits)
 		, Offset(Id.ToUnstableInt() & (FNameBlockOffsets - 1))
 	{}
-
+	// 转换成入口ID
 	operator FNameEntryId() const
 	{
+		// Block左移16位然后与Offset
 		return FNameEntryId::FromUnstableInt(Block << FNameBlockOffsetBits | Offset);
 	}
 
 	explicit operator bool() const { return Block | Offset; }
 };
 
+// 得到类型Hash
 static uint32 GetTypeHash(FNameEntryHandle Handle)
 {
 	return (Handle.Block << (32 - FNameMaxBlockBits)) + Handle.Block // Let block index impact most hash bits
@@ -210,6 +216,7 @@ static uint32 GetTypeHash(FNameEntryHandle Handle)
 		+ (Handle.Offset >> 4); // Reduce impact of non-uniformly distributed entry name lengths 
 }
 
+// 得到类型Hash
 uint32 GetTypeHash(FNameEntryId Id)
 {
 	return GetTypeHash(FNameEntryHandle(Id));
@@ -232,6 +239,7 @@ FArchive& operator<<(FArchive& Ar, FNameEntryId& Id)
 	return Ar;
 }
 
+// 从一个uint32创建一个FNameEntryId
 FNameEntryId FNameEntryId::FromUnstableInt(uint32 Value)
 {
 	FNameEntryId Id;
@@ -1137,31 +1145,36 @@ bool operator==(FNameEntryId Id, EName Ename)
 	return Id == GetNamePoolPostInit().Find(Ename);
 }
 
+// 按字母顺序比较不同的ID
 static int32 CompareDifferentIdsAlphabetically(FNameEntryId AId, FNameEntryId BId)
 {
 	checkSlow(AId != BId);
 
 	FNamePool& Pool = GetNamePool();
 	FNameBuffer ABuffer, BBuffer;
+	// 通过AId得到FNameStringView
 	FNameStringView AView =	Pool.Resolve(AId).MakeView(ABuffer);
 	FNameStringView BView =	Pool.Resolve(BId).MakeView(BBuffer);
 
 	// If only one view is wide, convert the ansi view to wide as well
+	// 如果其中一个是宽字符，另外一个是Ansi，就将Ansi字符转换成宽字符
 	if (AView.bIsWide != BView.bIsWide)
 	{
 		FNameStringView& AnsiView = AView.bIsWide ? BView : AView;
 		FNameBuffer& AnsiBuffer =	AView.bIsWide ? BBuffer : ABuffer;
 
 #ifndef WITH_CUSTOM_NAME_ENCODING
+		// 先将Ansi的字符串拷贝到Buffer
 		FPlatformMemory::Memcpy(AnsiBuffer.AnsiName, AnsiView.Ansi, AnsiView.Len * sizeof(ANSICHAR));
 		AnsiView.Ansi = AnsiBuffer.AnsiName;
 #endif
-
+		// 转换成宽字符
 		ConvertInPlace<ANSICHAR, WIDECHAR>(AnsiBuffer.AnsiName, AnsiView.Len);
 		AnsiView.bIsWide = true;
 	}
 
 	int32 MinLen = FMath::Min(AView.Len, BView.Len);
+	// 根据是否是宽字符，调用不同的比较函数
 	if (int32 StrDiff = AView.bIsWide ?	FCStringWide::Strnicmp(AView.Wide, BView.Wide, MinLen) :
 										FCStringAnsi::Strnicmp(AView.Ansi, BView.Ansi, MinLen))
 	{
@@ -1918,6 +1931,7 @@ struct FNameHelper
 
 
 #if WITH_CASE_PRESERVING_NAME
+// // 从显示ID中获得比较ID，先得到入口，在从入口中得到比较ID
 FNameEntryId FName::GetComparisonIdFromDisplayId(FNameEntryId DisplayId)
 {
 	return GetEntry(DisplayId)->ComparisonId;
@@ -1978,6 +1992,7 @@ bool FName::operator==(const WIDECHAR* Str) const
 	return FNameHelper::EqualsString(*this, Str);
 }
 
+// 比较名称和传入的名称。排序按字母顺序升序
 int32 FName::Compare( const FName& Other ) const
 {
 	// Names match, check whether numbers match.
@@ -1987,6 +2002,7 @@ int32 FName::Compare( const FName& Other ) const
 	}
 
 	// Names don't match. This means we don't even need to check numbers.
+	// 名称不匹配，这意味着我们甚至不需要检查数字
 	return CompareDifferentIdsAlphabetically(ComparisonIndex, Other.ComparisonIndex);
 }
 
@@ -2082,6 +2098,7 @@ uint32 FName::GetStringLength() const
 	const FNameEntry& Entry = *GetDisplayNameEntry();
 	uint32 NameLen = Entry.GetNameLength();
 
+	// 如果Number是无实例的Number
 	if (GetNumber() == NAME_NO_NUMBER_INTERNAL)
 	{
 		return NameLen;
@@ -2091,18 +2108,21 @@ uint32 FName::GetStringLength() const
 		TCHAR NumberSuffixStr[16];
 		int32 SuffixLen = FCString::Sprintf(NumberSuffixStr, TEXT("_%d"), NAME_INTERNAL_TO_EXTERNAL(GetNumber()));
 		check(SuffixLen > 0);
-
+		// 名称长度加上后缀长度
 		return NameLen + SuffixLen;
 	}
 }
 
-// 
+// 转换到string缓冲区防止动态分配并且返回字符串长度
 uint32 FName::ToString(TCHAR* Out, uint32 OutSize) const
 {
+	// 得到名字入口
 	const FNameEntry& Entry = *GetDisplayNameEntry();
+	// 通过入口得到名字的长度
 	uint32 NameLen = Entry.GetNameLength();
 	Entry.GetUnterminatedName(Out, OutSize);
 
+	// Number是无实例的
 	if (GetNumber() == NAME_NO_NUMBER_INTERNAL)
 	{
 		Out[NameLen] = '\0';
@@ -2111,10 +2131,11 @@ uint32 FName::ToString(TCHAR* Out, uint32 OutSize) const
 	else
 	{
 		TCHAR NumberSuffixStr[16];
+		// 后缀的长度
 		int32 SuffixLen = FCString::Sprintf(NumberSuffixStr, TEXT("_%d"), NAME_INTERNAL_TO_EXTERNAL(GetNumber()));
 		uint32 TotalLen = NameLen + SuffixLen;
 		check(SuffixLen > 0 && OutSize > TotalLen);
-
+		// 把后缀拷贝进缓冲区中
 		FPlatformMemory::Memcpy(Out + NameLen, NumberSuffixStr, SuffixLen * sizeof(TCHAR));
 		Out[TotalLen] = '\0';
 		return TotalLen;
@@ -2141,6 +2162,7 @@ void FName::AppendString(FStringBuilderBase& Out) const
 	GetDisplayNameEntry()->AppendNameToString(Out);
 
 	const int32 InternalNumber = GetNumber();
+	// 追加Number的后缀
 	if (InternalNumber != NAME_NO_NUMBER_INTERNAL)
 	{
 		Out << TEXT('_') << NAME_INTERNAL_TO_EXTERNAL(InternalNumber);
@@ -2151,7 +2173,7 @@ void FName::AppendString(FStringBuilderBase& Out) const
 bool FName::TryAppendAnsiString(FAnsiStringBuilderBase& Out) const
 {
 	const FNameEntry* const NameEntry = GetDisplayNameEntry();
-
+	// 宽字符
 	if (NameEntry->IsWide())
 	{
 		return false;
@@ -2592,12 +2614,13 @@ FArchive& operator<<(FArchive& Ar, FNameEntrySerialized& E)
 	return Ar;
 }
 
+// 从一个可用的Name中得到名字入口
 FNameEntryId FNameEntryId::FromValidEName(EName Ename)
 {
 	return GetNamePool().Find(Ename);
 }
 
-
+// 从系统中拆除，并释放所有的内存
 void FName::TearDown()
 {
 	check(IsInGameThread());
