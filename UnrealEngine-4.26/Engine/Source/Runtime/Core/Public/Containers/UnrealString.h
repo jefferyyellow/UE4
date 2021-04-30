@@ -37,6 +37,7 @@ const TCHAR* GetData(const FString&);
 
 /**
  * A dynamically sizeable string.
+ * 一个动态大小的字符串
  * @see https://docs.unrealengine.com/latest/INT/Programming/UnrealArchitecture/StringHandling/FString/
  */
 class CORE_API FString
@@ -45,6 +46,7 @@ private:
 	friend struct TContainerTraits<FString>;
 
 	/** Array holding the character data */
+	// 内部就是用一个动态的字符数组实现（TArray）
 	typedef TArray<TCHAR> DataType;
 	DataType Data;
 
@@ -62,6 +64,7 @@ private:
 	};
 
 	/** Trait testing whether a type is a contiguous range of characters, and not CharType[]. */
+	// 特征测试一个类型是否是一个连续的字符范围，而不是CharType[]
 	template <typename CharRangeType>
 	using TIsCharRangeNotCArray = TAnd<
 		TIsContiguousContainer<CharRangeType>,
@@ -69,6 +72,7 @@ private:
 		TIsRangeOfCharType<CharRangeType>>;
 
 	/** Trait testing whether a type is a contiguous range of TCHAR, and not TCHAR[]. */
+	//  特征测试一个类型是否是一个连续的TCHAR范围，而不是TCHAR[]
 	template <typename CharRangeType>
 	using TIsTCharRangeNotCArray = TAnd<
 		TIsContiguousContainer<CharRangeType>,
@@ -76,6 +80,7 @@ private:
 		TIsRangeOfTCHAR<CharRangeType>>;
 
 public:
+	// 元素类型是宽字符
 	using ElementType = TCHAR;
 
 	FString() = default;
@@ -90,6 +95,8 @@ public:
 	 * @param Other the other string to create a new copy from
 	 * @param ExtraSlack number of extra characters to add to the end of the other string in this string
 	 */
+	// 拷贝构造函数，这个函数会预留额外的ExtraSlack空间在string的尾部
+	// 如果原字符串为空，并且需要一些额外空间(ExtraSlack > 0),则添加1，因为我们需要包含当前缺少的空终止符
 	FORCEINLINE FString(const FString& Other, int32 ExtraSlack)
 		: Data(Other.Data, ExtraSlack + ((Other.Data.Num() || !ExtraSlack) ? 0 : 1)) // Add 1 if the source string array is empty and we want some slack, because we'll need to include a null terminator which is currently missing
 	{
@@ -101,6 +108,8 @@ public:
 	 * @param Other the other string to create a new copy from
 	 * @param ExtraSlack number of extra characters to add to the end of the other string in this string
 	 */
+	// 拷贝构造函数，这个函数会预留额外的ExtraSlack空间在string的尾部
+	// 如果原字符串为空，并且需要一些额外空间(ExtraSlack > 0),则添加1，因为我们需要包含当前缺少的空终止符
 	FORCEINLINE FString(FString&& Other, int32 ExtraSlack)
 		: Data(MoveTemp(Other.Data), ExtraSlack + ((Other.Data.Num() || !ExtraSlack) ? 0 : 1)) // Add 1 if the source string array is empty and we want some slack, because we'll need to include a null terminator which is currently missing
 	{
@@ -111,6 +120,8 @@ public:
 	 *
 	 * @param In array of TCHAR
 	 */
+	// 使用一个TCHAR数组的构造函数
+	// 这个TEnableIf是为了确保我们不会为非字符类型实例化这个构造函数，比如Obj-C中的id*
 	template <
 		typename CharType,
 		typename = typename TEnableIf<TIsCharType<CharType>::Value>::Type // This TEnableIf is to ensure we don't instantiate this constructor for non-char types, like id* in Obj-C
@@ -119,11 +130,15 @@ public:
 	{
 		if (Src && *Src)
 		{
+			// 计算长度，后面的终止符加1
 			int32 SrcLen  = TCString<CharType>::Strlen(Src) + 1;
+			// 转换成宽字符
 			int32 DestLen = FPlatformString::ConvertedLength<TCHAR>(Src, SrcLen);
+			// 设置容量大小，第一步：分配内存，设置容量
 			Data.Reserve(DestLen);
+			// 增加同样的未初始化长度（目的就是增加长度），第二步：设置字符串长度
 			Data.AddUninitialized(DestLen);
-
+			// 将数据拷贝进去
 			FPlatformString::Convert(Data.GetData(), DestLen, Src, SrcLen);
 		}
 	}
@@ -134,6 +149,8 @@ public:
 	 * @param InCount how many characters to copy
 	 * @param InSrc String to copy from
 	 */
+	// 构造函数从另一个具有附加字符零的字符串中创建具有指定字符数的FString
+	// 这个TEnableIf是为了确保我们不会为非字符类型实例化这个构造函数，比如Obj-C中的id*
 	template <
 		typename CharType,
 		typename = typename TEnableIf<TIsCharType<CharType>::Value>::Type // This TEnableIf is to ensure we don't instantiate this constructor for non-char types, like id* in Obj-C
@@ -142,13 +159,17 @@ public:
 	{
 		if (InSrc)
 		{
+			// 先转换成宽字符
 			int32 DestLen = FPlatformString::ConvertedLength<TCHAR>(InSrc, InCount);
 			if (DestLen > 0 && *InSrc)
 			{
+				// 设置容量大小，第一步：分配内存，设置容量
 				Data.Reserve(DestLen + 1);
+				// 增加同样的未初始化长度（目的就是增加长度），第二步：设置字符串长度
 				Data.AddUninitialized(DestLen + 1);
-
+				// 将数据拷贝进去
 				FPlatformString::Convert(Data.GetData(), DestLen, InSrc, InCount);
+				// 注意，字符串对应的长度，未必以0结尾，所以需要加上0
 				*(Data.GetData() + Data.Num() - 1) = TEXT('\0');
 			}
 		}
@@ -160,6 +181,7 @@ public:
 	 * @param Other the other string to create a new copy from
 	 * @param ExtraSlack number of extra characters to add to the end of the other string in this string
 	 */
+	// 构造函数使用另外一个字符串中指定数目的字符创建一个FString，使用额外的0字符
 	template <
 		typename CharType,
 		typename = typename TEnableIf<TIsCharType<CharType>::Value>::Type // This TEnableIf is to ensure we don't instantiate this constructor for non-char types, like id* in Obj-C
@@ -168,11 +190,14 @@ public:
 	{
 		if (Src && *Src)
 		{
+			// 计算字符串需要的长度
 			int32 SrcLen = TCString<CharType>::Strlen(Src) + 1;
+			// 目标编码的字符串长度
 			int32 DestLen = FPlatformString::ConvertedLength<TCHAR>(Src, SrcLen);
+			// 加上额外的长度
 			Data.Reserve(DestLen + ExtraSlack);
 			Data.AddUninitialized(DestLen);
-
+			// 拷贝数据
 			FPlatformString::Convert(Data.GetData(), DestLen, Src, SrcLen);
 		}
 		else
@@ -186,14 +211,18 @@ public:
 	 *
 	 * @param Other The contiguous character range to copy from
 	 */
+	// 从一个连续的字符范围创建FString
 	template <typename CharRangeType, typename TEnableIf<TIsCharRangeNotCArray<CharRangeType>::Value>::Type* = nullptr>
 	explicit FString(CharRangeType&& Other)
 	{
+		// 得到长度
 		if (const auto OtherNum = GetNum(Other))
 		{
 			const int32 OtherLen = int32(OtherNum);
 			checkf(decltype(OtherNum)(OtherLen) == OtherNum, TEXT("Invalid number of characters to add to this string type: %" UINT64_FMT), uint64(OtherNum));
+			// 预留长度
 			Reserve(OtherLen);
+			// 将字符附加到尾部
 			AppendChars(GetData(Forward<CharRangeType>(Other)), OtherLen);
 		}
 	}
@@ -204,16 +233,19 @@ public:
 	 * @param Other The contiguous character range to copy from
 	 * @param ExtraSlack The number of extra characters to reserve space for in the new string
 	 */
+	// 从一个连续的字符串中创建一个FString，并且有额外的空间在字符串的尾部
 	template <typename CharRangeType, typename TEnableIf<TIsCharRangeNotCArray<CharRangeType>::Value>::Type* = nullptr>
 	explicit FString(CharRangeType&& Other, int32 ExtraSlack)
 	{
+		// 得到连续字符串的数目
 		const auto OtherNum = GetNum(Other);
 		const int32 OtherLen = int32(OtherNum);
 		checkf(decltype(OtherNum)(OtherLen) == OtherNum, TEXT("Invalid number of characters to add to this string type: %" UINT64_FMT), uint64(OtherNum));
-
+		// 预留字符串加上额外空间的大小
 		Reserve(OtherLen + ExtraSlack);
 		if (OtherLen)
 		{
+			// 将字符附加到尾部
 			AppendChars(GetData(Forward<CharRangeType>(Other)), OtherLen);
 		}
 	}
@@ -251,16 +283,21 @@ public:
 	 *
 	 * @param Other array of TCHAR
 	 */
+	// 从TCHAR的赋值运算符
 	FORCEINLINE FString& operator=( const TCHAR* Other )
 	{
+		// 不是同一个数据源
 		if (Data.GetData() != Other)
 		{
+			// 计算长度
 			int32 Len = (Other && *Other) ? FCString::Strlen(Other)+1 : 0;
+			// 预留长度
 			Data.Empty(Len);
 			Data.AddUninitialized(Len);
 			
 			if( Len )
 			{
+				// 拷贝数据
 				FMemory::Memcpy( Data.GetData(), Other, Len * sizeof(TCHAR) );
 			}
 		}
@@ -270,6 +307,7 @@ public:
 	/**
 	 * Copy assignment from a contiguous range of characters
 	 */
+	// 
 	template <typename CharRangeType, typename TEnableIf<TIsTCharRangeNotCArray<CharRangeType>::Value>::Type* = nullptr>
 	FString& operator=(CharRangeType&& Other)
 	{
