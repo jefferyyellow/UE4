@@ -80,7 +80,7 @@ private:
 		TIsRangeOfTCHAR<CharRangeType>>;
 
 public:
-	// 元素类型是宽字符
+	// 元素类型是宽字符/宅字符根据TCHAR的定义
 	using ElementType = TCHAR;
 
 	FString() = default;
@@ -307,14 +307,15 @@ public:
 	/**
 	 * Copy assignment from a contiguous range of characters
 	 */
-	// 
+	// 拷贝赋值符 从一个连续的字符范围
 	template <typename CharRangeType, typename TEnableIf<TIsTCharRangeNotCArray<CharRangeType>::Value>::Type* = nullptr>
 	FString& operator=(CharRangeType&& Other)
 	{
+		// 得到数目
 		const auto OtherNum = GetNum(Other);
 		const int32 OtherLen = int32(OtherNum);
 		checkf(decltype(OtherNum)(OtherLen) == OtherNum, TEXT("Invalid number of characters to assign to this string type: %" UINT64_FMT), uint64(OtherNum));
-
+		// 如果源字符的长度为0，就是一个空串
 		if (OtherLen == 0)
 		{
 			Empty();
@@ -323,19 +324,25 @@ public:
 		{
 			const TCHAR* const OtherData = GetData(Other);
 			const int32 ThisLen = Len();
+			// 源长度比目前的长度还少
 			if (OtherLen <= ThisLen)
 			{
 				// Unless the input is longer, this might be assigned from a view of itself.
+				// 直接将数据拷贝进去
 				TCHAR* DataPtr = Data.GetData();
 				FMemory::Memmove(DataPtr, OtherData, OtherLen * sizeof(TCHAR));
 				DataPtr[OtherLen] = TEXT('\0');
+				// 将后面的移除掉
 				Data.RemoveAt(OtherLen + 1, ThisLen - OtherLen);
 			}
 			else
 			{
+				// 预留长度
 				Data.Empty(OtherLen + 1);
+				// 如果需要增加未初始化的内存，达到指定长度
 				Data.AddUninitialized(OtherLen + 1);
 				TCHAR* DataPtr = Data.GetData();
+				// 拷贝数据
 				FMemory::Memcpy(DataPtr, OtherData, OtherLen * sizeof(TCHAR));
 				DataPtr[OtherLen] = TEXT('\0');
 			}
@@ -350,6 +357,7 @@ public:
 	 * @param Index into string
 	 * @return Character at Index
 	 */
+	// 从字符串中返回指定索引的字符
 	FORCEINLINE TCHAR& operator[]( int32 Index )
 	{
 		checkf(IsValidIndex(Index), TEXT("String index out of bounds: Index %i from a string with a length of %i"), Index, Len());
@@ -362,6 +370,7 @@ public:
 	 * @param Index into string
 	 * @return const Character at Index
 	 */
+	// 从字符串中返回指定索引的常量字符
 	FORCEINLINE const TCHAR& operator[]( int32 Index ) const
 	{
 		checkf(IsValidIndex(Index), TEXT("String index out of bounds: Index %i from a string with a length of %i"), Index, Len());
@@ -375,12 +384,14 @@ public:
 	typedef TArray<TCHAR>::TConstIterator TConstIterator;
 
 	/** Creates an iterator for the characters in this string */
+	// 创建一个string的迭代器
 	FORCEINLINE TIterator CreateIterator()
 	{
 		return Data.CreateIterator();
 	}
 
 	/** Creates a const iterator for the characters in this string */
+	// 创建一个string的常量迭代器
 	FORCEINLINE TConstIterator CreateConstIterator() const
 	{
 		return Data.CreateConstIterator();
@@ -397,6 +408,7 @@ public:
 	FORCEINLINE DataType::RangedForConstIteratorType end  () const { auto Result = Data.end();   if (Data.Num()) { --Result; }     return Result; }
 
 public:
+	// 得到分配器的大小
 	FORCEINLINE SIZE_T GetAllocatedSize() const
 	{
 		return Data.GetAllocatedSize();
@@ -405,6 +417,7 @@ public:
 	/**
 	 * Run slow checks on this string
 	 */
+	// 检查string上的各种常量
 	FORCEINLINE void CheckInvariants() const
 	{
 		int32 Num = Data.Num();
@@ -418,6 +431,7 @@ public:
 	 *
 	 * @param Slack length of empty string to create
 	 */
+	// 创建一个指定大小的空串，以0结尾
 	FORCEINLINE void Empty( int32 Slack=0 )
 	{
 		Data.Empty(Slack);
@@ -428,6 +442,7 @@ public:
 	 *
 	 * @return true if this string is empty, otherwise return false.
 	 */
+	// 检查字符串是否为空串
 	FORCEINLINE bool IsEmpty() const
 	{
 		return Data.Num() <= 1;
@@ -438,8 +453,11 @@ public:
 	 *
 	 * @param NewReservedSize The expected usage size (in characters, not including the terminator) after calling this function.
 	 */
+	// 清空string,并且不改变内存分配，除非新的尺寸比当前的string的尺寸大
+	// NewReservedSize：调用该函数后希望可以使用的尺寸（字符长度，不包括终止符）
 	FORCEINLINE void Reset(int32 NewReservedSize = 0)
 	{
+		// 计算预留的尺寸大小，加上终止符
 		const int32 NewSizeIncludingTerminator = (NewReservedSize > 0) ? (NewReservedSize + 1) : 0;
 		Data.Reset(NewSizeIncludingTerminator);
 		if (TCHAR* DataPtr = Data.GetData())
@@ -451,6 +469,7 @@ public:
 	/**
 	 * Remove unallocated empty character space from the end of this string
 	 */
+	// 从字符串的后部删除未分配的空字符空间
 	FORCEINLINE void Shrink()
 	{
 		Data.Shrink();
@@ -463,6 +482,7 @@ public:
 	 *
 	 * @returns True if index is valid. False otherwise.
 	 */
+	// 索引是否非法
 	FORCEINLINE bool IsValidIndex(int32 Index) const
 	{
 		return Index >= 0 && Index < Len();
@@ -473,6 +493,7 @@ public:
 	 *
 	 * @Return Pointer to Array of TCHAR if Num, otherwise the empty string
 	 */
+	// 得到字符串的字符指针
 	FORCEINLINE const TCHAR* operator*() const
 	{
 		return Data.Num() ? Data.GetData() : TEXT("");
@@ -484,12 +505,14 @@ public:
 	 * @warning: Operations on the TArray<*CHAR> can be unsafe, such as adding
 	 *		non-terminating 0's or removing the terminating zero.
 	 */
+	// 将string作为一个TCHARS的数组返回
 	FORCEINLINE DataType& GetCharArray()
 	{
 		return Data;
 	}
 
 	/** Get string as const array of TCHARS */
+	// 将string作为一个TCHARS的常量数组返回
 	FORCEINLINE const DataType& GetCharArray() const
 	{
 		return Data;
@@ -512,11 +535,13 @@ public:
 	 *
 	 * @param Str can be null if Count is 0. Can be unterminated, Str[Count] isn't read.
 	 */
+	// 附加一个指定数目的字符串，不包括null终止符在里面
 	void AppendChars(const ANSICHAR* Str, int32 Count);
 	void AppendChars(const WIDECHAR* Str, int32 Count);
 	void AppendChars(const UCS2CHAR* Str, int32 Count);
 
 	/** Append a string and return a reference to this */
+	// 附加一个指定数目的字符串并且返回this的引用
 	template<class CharType>
 	FORCEINLINE FString& Append(const CharType* Str, int32 Count)
 	{

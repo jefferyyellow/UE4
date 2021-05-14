@@ -119,11 +119,12 @@ namespace UE4String_Private
 	}
 }
 
+// 附加一个字符范围，不包括null终止符在里面
 template<typename CharType>
 void AppendCharacters(TArray<TCHAR>& Out, const CharType* Str, int32 Count)
 {
 	check(Count >= 0);
-
+	// 如果字符数为0，直接返回
 	if (!Count)
 	{
 		return;
@@ -134,29 +135,36 @@ void AppendCharacters(TArray<TCHAR>& Out, const CharType* Str, int32 Count)
 	const int32 OldNum = Out.Num();
 
 	// Reserve enough space - including an extra gap for a null terminator if we don't already have a string allocated
+	// 预留足够的空间，如果还没有字符分配的话，包含一个额外的null终止符
 	Out.AddUninitialized(Count + (OldNum ? 0 : 1));
 
+	// 得到上一个字符的后面一个字符处
 	TCHAR* Dest = Out.GetData() + OldNum - (OldNum ? 1 : 0);
 
 	// Copy characters to end of string, overwriting null terminator if we already have one
+	// 将字符拷贝到字符串的尾部
 	FPlatformString::Convert(Dest, Count, Str, Count);
 
 	// (Re-)establish the null terminator
+	// 重新建立null终止符
 	Dest[Count] = '\0';
 }
 
+// 附加一个字符范围，不包括null终止符在里面
 void FString::AppendChars(const ANSICHAR* Str, int32 Count)
 {
 	CheckInvariants();
 	AppendCharacters(Data, Str, Count);
 }
 
+// 附加一个字符范围，不包括null终止符在里面
 void FString::AppendChars(const WIDECHAR* Str, int32 Count)
 {
 	CheckInvariants();
 	AppendCharacters(Data, Str, Count);
 }
 
+// 附加一个字符范围，不包括null终止符在里面
 void FString::AppendChars(const UCS2CHAR* Str, int32 Count)
 {
 	CheckInvariants();

@@ -259,6 +259,7 @@ protected:
 	TArray<FBehaviorTreeInstanceId> KnownInstances;
 
 	/** instanced nodes */
+	// 实例化节点
 	UPROPERTY(transient)
 	TArray<UBTNode*> NodeInstances;
 

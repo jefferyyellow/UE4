@@ -678,6 +678,7 @@ public:
 	 * Checks array invariants: if array size is greater than zero and less
 	 * than maximum.
 	 */
+	// 检查数组不变式：如果数组的尺寸大于0并且小于最大值
 	FORCEINLINE void CheckInvariants() const
 	{
 		checkSlow((ArrayNum >= 0) & (ArrayMax >= ArrayNum)); // & for one branch
@@ -688,6 +689,7 @@ public:
 	 *
 	 * @param Index Index to check.
 	 */
+	// 检查索引是否在数组的范围内
 	FORCEINLINE void RangeCheck(SizeType Index) const
 	{
 		CheckInvariants();
@@ -1591,16 +1593,20 @@ public:
 	}
 
 private:
+	// 移除从Index开始的Count个元素，还可以选择性收缩数组
 	void RemoveAtImpl(SizeType Index, SizeType Count, bool bAllowShrinking)
 	{
 		if (Count)
 		{
+			// 检查数据常量是否合法
 			CheckInvariants();
+			// 检查索引和数目是否合法
 			checkSlow((Count >= 0) & (Index >= 0) & (Index + Count <= ArrayNum));
-
+			// 析构元素
 			DestructItems(GetData() + Index, Count);
 
 			// Skip memmove in the common case that there is nothing to move.
+			// 如果后面还有元素，需要将元素移动到前面来
 			SizeType NumToMove = ArrayNum - Index - Count;
 			if (NumToMove)
 			{
@@ -1613,8 +1619,10 @@ private:
 			}
 			ArrayNum -= Count;
 
+			// 如果允许收缩
 			if (bAllowShrinking)
 			{
+				// 重新设置大小，收缩
 				ResizeShrink();
 			}
 		}
@@ -1629,6 +1637,7 @@ public:
 	 * @param Count (Optional) Number of elements to remove. Default is 1.
 	 * @param bAllowShrinking (Optional) Tells if this call can shrink array if suitable after remove. Default is true.
 	 */
+	// 移除Index处的一个元素，还可以选择性收缩数组
 	FORCEINLINE void RemoveAt(SizeType Index)
 	{
 		RemoveAtImpl(Index, 1, true);
@@ -1642,6 +1651,7 @@ public:
 	 * @param Count (Optional) Number of elements to remove. Default is 1.
 	 * @param bAllowShrinking (Optional) Tells if this call can shrink array if suitable after remove. Default is true.
 	 */
+	// 移除从Index开始的Count个元素，还可以选择性收缩数组
 	template <typename CountType>
 	FORCEINLINE void RemoveAt(SizeType Index, CountType Count, bool bAllowShrinking = true)
 	{
@@ -1650,6 +1660,7 @@ public:
 	}
 
 private:
+	// 
 	void RemoveAtSwapImpl(SizeType Index, SizeType Count = 1, bool bAllowShrinking = true)
 	{
 		if (Count)
@@ -2582,13 +2593,17 @@ private:
 		ArrayMax = AllocatorInstance.CalculateSlackGrow(ArrayNum, ArrayMax, sizeof(ElementType));
 		AllocatorInstance.ResizeAllocation(OldNum, ArrayMax, sizeof(ElementType));
 	}
+	// 重新设置大小，收缩
 	FORCENOINLINE void ResizeShrink()
 	{
+		// 根据当前的长度，重新计算最大长度
 		const SizeType NewArrayMax = AllocatorInstance.CalculateSlackShrink(ArrayNum, ArrayMax, sizeof(ElementType));
+		// 如果重新计算的最大长度和当前的最大长度不一致
 		if (NewArrayMax != ArrayMax)
 		{
 			ArrayMax = NewArrayMax;
 			check(ArrayMax >= ArrayNum);
+			// 分配器重新设置大小
 			AllocatorInstance.ResizeAllocation(ArrayNum, ArrayMax, sizeof(ElementType));
 		}
 	}

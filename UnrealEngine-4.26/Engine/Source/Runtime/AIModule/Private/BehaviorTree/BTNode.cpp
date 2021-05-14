@@ -74,39 +74,49 @@ void UBTNode::OnInstanceDestroyed(UBehaviorTreeComponent& OwnerComp)
 	// empty in base class
 }
 
+// 调用创建子树来设置内存和实例化
 void UBTNode::InitializeInSubtree(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory, int32& NextInstancedIndex, EBTMemoryInit::Type InitType) const
 {
+	// 从节点内存，获得对应的索引，然后初始化
 	FBTInstancedNodeMemory* SpecialMemory = GetSpecialNodeMemory<FBTInstancedNodeMemory>(NodeMemory);
 	if (SpecialMemory)
 	{
 		SpecialMemory->NodeIdx = INDEX_NONE;
 	}
 
+	// 是否需要实例化节点
 	if (bCreateNodeInstance)
 	{
 		// composite nodes can't be instanced!
+		// 复合节点无法被实例化！
 		check(IsA(UBTCompositeNode::StaticClass()) == false);
 
 		UBTNode* NodeInstance = OwnerComp.NodeInstances.IsValidIndex(NextInstancedIndex) ? OwnerComp.NodeInstances[NextInstancedIndex] : NULL;
 		if (NodeInstance == NULL)
 		{
+			// 复制Object
 			NodeInstance = (UBTNode*)StaticDuplicateObject(this, &OwnerComp);
+			// 初始化节点
 			NodeInstance->InitializeNode(GetParentNode(), GetExecutionIndex(), GetMemoryOffset(), GetTreeDepth());
+			// 初始化完成
 			NodeInstance->bIsInstanced = true;
-
+			// 加入节点实例化
 			OwnerComp.NodeInstances.Add(NodeInstance);
 		}
 
 		check(NodeInstance);
 		check(SpecialMemory);
 
+		// 设置节点索引
 		SpecialMemory->NodeIdx = NextInstancedIndex;
 
 		NodeInstance->SetOwner(OwnerComp.GetOwner());
 		NodeInstance->InitializeMemory(OwnerComp, NodeMemory, InitType);
 		check(TreeAsset);
+		// 初始化树
 		NodeInstance->InitializeFromAsset(*TreeAsset);
 		NodeInstance->OnInstanceCreated(OwnerComp);
+		// 增加节点实例索引
 		NextInstancedIndex++;
 	}
 	else
@@ -131,6 +141,7 @@ void UBTNode::InitializeExecutionOrder(UBTNode* NextNode)
 }
 #endif
 
+// 初始化任何资产相关数据
 void UBTNode::InitializeFromAsset(UBehaviorTree& Asset)
 {
 	TreeAsset = &Asset;
@@ -151,6 +162,7 @@ uint16 UBTNode::GetSpecialMemorySize() const
 	return bCreateNodeInstance ? sizeof(FBTInstancedNodeMemory) : 0;
 }
 
+// 得到节点实例
 UBTNode* UBTNode::GetNodeInstance(const UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory) const
 {
 	FBTInstancedNodeMemory* MyMemory = GetSpecialNodeMemory<FBTInstancedNodeMemory>(NodeMemory);
