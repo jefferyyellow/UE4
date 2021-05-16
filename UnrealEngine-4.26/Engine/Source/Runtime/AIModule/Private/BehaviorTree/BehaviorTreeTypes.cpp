@@ -32,23 +32,27 @@ void FBehaviorTreeInstance::Initialize(UBehaviorTreeComponent& OwnerComp, UBTCom
 		Node.Services[ServiceIndex]->InitializeInSubtree(OwnerComp, Node.Services[ServiceIndex]->GetNodeMemory<uint8>(*this), InstancedIndex, InitType);
 	}
 
+	// 初始化根节点
 	uint8* NodeMemory = Node.GetNodeMemory<uint8>(*this);
 	Node.InitializeInSubtree(OwnerComp, NodeMemory, InstancedIndex, InitType);
 
+	// 得到复合节点
 	UBTCompositeNode* InstancedComposite = Cast<UBTCompositeNode>(Node.GetNodeInstance(OwnerComp, NodeMemory));
 	if (InstancedComposite)
 	{
 		InstancedComposite->InitializeComposite(Node.GetLastExecutionIndex());
 	}
 
+	// 遍历所有的复合子节点
 	for (int32 ChildIndex = 0; ChildIndex < Node.Children.Num(); ChildIndex++)
 	{
 		FBTCompositeChild& ChildInfo = Node.Children[ChildIndex];
-
+		// 遍历子节点中的装饰节点
 		for (int32 DecoratorIndex = 0; DecoratorIndex < ChildInfo.Decorators.Num(); DecoratorIndex++)
 		{
 			UBTDecorator* DecoratorOb = ChildInfo.Decorators[DecoratorIndex];
 			uint8* DecoratorMemory = DecoratorOb->GetNodeMemory<uint8>(*this);
+			// 创建子树设置内存和实例化时调用
 			DecoratorOb->InitializeInSubtree(OwnerComp, DecoratorMemory, InstancedIndex, InitType);
 
 			UBTDecorator* InstancedDecoratorOb = Cast<UBTDecorator>(DecoratorOb->GetNodeInstance(OwnerComp, DecoratorMemory));
@@ -58,12 +62,15 @@ void FBehaviorTreeInstance::Initialize(UBehaviorTreeComponent& OwnerComp, UBTCom
 			}
 		}
 
+		// 如果是复合节点，那就递归调用，初始化复合节点
 		if (ChildInfo.ChildComposite)
 		{
 			Initialize(OwnerComp, *(ChildInfo.ChildComposite), InstancedIndex, InitType);
 		}
+		// 如果是任务节点
 		else if (ChildInfo.ChildTask)
 		{
+			// 初始话任务节点下面的服务节点
 			for (int32 ServiceIndex = 0; ServiceIndex < ChildInfo.ChildTask->Services.Num(); ServiceIndex++)
 			{
 				UBTService* ServiceOb = ChildInfo.ChildTask->Services[ServiceIndex];
@@ -76,7 +83,7 @@ void FBehaviorTreeInstance::Initialize(UBehaviorTreeComponent& OwnerComp, UBTCom
 					InstancedServiceOb->InitializeParentLink(ServiceOb->GetChildIndex());
 				}
 			}
-
+			// 初始化任务节点
 			ChildInfo.ChildTask->InitializeInSubtree(OwnerComp, ChildInfo.ChildTask->GetNodeMemory<uint8>(*this), InstancedIndex, InitType);
 		}
 	}
@@ -85,22 +92,27 @@ void FBehaviorTreeInstance::Initialize(UBehaviorTreeComponent& OwnerComp, UBTCom
 void FBehaviorTreeInstance::Cleanup(UBehaviorTreeComponent& OwnerComp, EBTMemoryClear::Type CleanupType)
 {
 	FBehaviorTreeInstanceId& Info = OwnerComp.KnownInstances[InstanceIdIndex];
+	// 取得第一个节点实例的索引
 	if (Info.FirstNodeInstance >= 0)
 	{
 		const int32 MaxAllowedIdx = OwnerComp.NodeInstances.Num();
+		// 如果存在下一个树实例，那就取得下一个树实例的开始索引，如果不存在，就使用节点数量作为最大索引
 		const int32 LastNodeIdx = OwnerComp.KnownInstances.IsValidIndex(InstanceIdIndex + 1) ?
 			FMath::Min(OwnerComp.KnownInstances[InstanceIdIndex + 1].FirstNodeInstance, MaxAllowedIdx) :
 			MaxAllowedIdx;
 
+		// 将所有需要销毁的节点调用将要消耗函数
 		for (int32 Idx = Info.FirstNodeInstance; Idx < LastNodeIdx; Idx++)
 		{
 			OwnerComp.NodeInstances[Idx]->OnInstanceDestroyed(OwnerComp);
 		}
 	}
 
+	// 销毁节点
 	CleanupNodes(OwnerComp, *RootNode, CleanupType);
 
 	// remove memory when instance is destroyed - it will need full initialize anyway
+	// 如果实例销毁就删除内存，无论如何，它将需要完全初始化
 	if (CleanupType == EBTMemoryClear::Destroy)
 	{
 		Info.InstanceMemory.Empty();
@@ -111,35 +123,45 @@ void FBehaviorTreeInstance::Cleanup(UBehaviorTreeComponent& OwnerComp, EBTMemory
 	}
 }
 
+// 清除所有的节点
 void FBehaviorTreeInstance::CleanupNodes(UBehaviorTreeComponent& OwnerComp, UBTCompositeNode& Node, EBTMemoryClear::Type CleanupType)
 {
+	// 清除所有的服务节点
 	for (int32 ServiceIndex = 0; ServiceIndex < Node.Services.Num(); ServiceIndex++)
 	{
 		Node.Services[ServiceIndex]->CleanupInSubtree(OwnerComp, Node.Services[ServiceIndex]->GetNodeMemory<uint8>(*this), CleanupType);
 	}
 
+	// 清除当前节点的子树
 	Node.CleanupInSubtree(OwnerComp, Node.GetNodeMemory<uint8>(*this), CleanupType);
 
+	// 遍历所有的子节点
 	for (int32 ChildIndex = 0; ChildIndex < Node.Children.Num(); ChildIndex++)
 	{
 		FBTCompositeChild& ChildInfo = Node.Children[ChildIndex];
 
+		// 清除子节点中所有的装饰节点
 		for (int32 DecoratorIndex = 0; DecoratorIndex < ChildInfo.Decorators.Num(); DecoratorIndex++)
 		{
 			ChildInfo.Decorators[DecoratorIndex]->CleanupInSubtree(OwnerComp, ChildInfo.Decorators[DecoratorIndex]->GetNodeMemory<uint8>(*this), CleanupType);
 		}
 
+		// 如果子节点是复合节点，递归调用
 		if (ChildInfo.ChildComposite)
 		{
+			// 清除节点
 			CleanupNodes(OwnerComp, *(ChildInfo.ChildComposite), CleanupType);
 		}
+		// 如果子节点是任务节点
 		else if (ChildInfo.ChildTask)
 		{
+			// 清除任务节点附带的服务节点
 			for (int32 ServiceIndex = 0; ServiceIndex < ChildInfo.ChildTask->Services.Num(); ServiceIndex++)
 			{
 				ChildInfo.ChildTask->Services[ServiceIndex]->CleanupInSubtree(OwnerComp, ChildInfo.ChildTask->Services[ServiceIndex]->GetNodeMemory<uint8>(*this), CleanupType);
 			}
 
+			// 清除任务节点
 			ChildInfo.ChildTask->CleanupInSubtree(OwnerComp, ChildInfo.ChildTask->GetNodeMemory<uint8>(*this), CleanupType);
 		}
 	}
@@ -199,6 +221,7 @@ FBehaviorTreeInstance::~FBehaviorTreeInstance()
 	DEC_DWORD_STAT(STAT_AI_BehaviorTree_NumInstances);
 }
 
+// 将指定的节点添加到活动节点列表中
 void FBehaviorTreeInstance::AddToActiveAuxNodes(UBTAuxiliaryNode* AuxNode)
 {
 #if DO_ENSURE
@@ -207,6 +230,7 @@ void FBehaviorTreeInstance::AddToActiveAuxNodes(UBTAuxiliaryNode* AuxNode)
 	MEM_STAT_UPDATE_WRAPPER(ActiveAuxNodes.Add(AuxNode));
 }
 
+// 从活动节点列表中删除指定的节点
 void FBehaviorTreeInstance::RemoveFromActiveAuxNodes(UBTAuxiliaryNode* AuxNode)
 {
 #if DO_ENSURE
@@ -215,6 +239,7 @@ void FBehaviorTreeInstance::RemoveFromActiveAuxNodes(UBTAuxiliaryNode* AuxNode)
 	MEM_STAT_UPDATE_WRAPPER(ActiveAuxNodes.RemoveSingleSwap(AuxNode));
 }
 
+// 从活动节点列表删除所有的辅助节点
 void FBehaviorTreeInstance::ResetActiveAuxNodes()
 {
 #if DO_ENSURE
@@ -223,6 +248,7 @@ void FBehaviorTreeInstance::ResetActiveAuxNodes()
 	MEM_STAT_UPDATE_WRAPPER(ActiveAuxNodes.Reset());
 }
 
+// 活动的并行任务
 void FBehaviorTreeInstance::AddToParallelTasks(FBehaviorTreeParallelTask&& ParallelTask)
 {
 #if DO_ENSURE
@@ -231,6 +257,7 @@ void FBehaviorTreeInstance::AddToParallelTasks(FBehaviorTreeParallelTask&& Paral
 	MEM_STAT_UPDATE_WRAPPER(ParallelTasks.Add(ParallelTask));
 }
 
+// 在给定的索引上删除一个并行任务
 void FBehaviorTreeInstance::RemoveParallelTaskAt(int32 TaskIndex)
 {
 	check(ParallelTasks.IsValidIndex(TaskIndex));
@@ -242,12 +269,14 @@ void FBehaviorTreeInstance::RemoveParallelTaskAt(int32 TaskIndex)
 	MEM_STAT_UPDATE_WRAPPER(ParallelTasks.RemoveAt(TaskIndex, /*Count=*/1, /*bAllowShrinking=*/false));
 }
 
+// 将给定索引处的并行任务标记为挂起中止
 void FBehaviorTreeInstance::MarkParallelTaskAsAbortingAt(int32 TaskIndex)
 {
 	check(ParallelTasks.IsValidIndex(TaskIndex));
 	ParallelTasks[TaskIndex].Status = EBTTaskStatus::Aborting;
 }
 
+// 设置实例内存
 void FBehaviorTreeInstance::SetInstanceMemory(const TArray<uint8>& Memory)
 {
 	MEM_STAT_UPDATE_WRAPPER(InstanceMemory = Memory);
@@ -255,6 +284,7 @@ void FBehaviorTreeInstance::SetInstanceMemory(const TArray<uint8>& Memory)
 
 #undef MEM_STAT_UPDATE_WRAPPER
 
+// 遍历辅助节点并在它们上面调用ExecFunc。迭代期间无法增加或者删除节点
 void FBehaviorTreeInstance::ExecuteOnEachAuxNode(TFunctionRef<void(const UBTAuxiliaryNode&)> ExecFunc)
 {
 #if DO_ENSURE
@@ -268,9 +298,11 @@ void FBehaviorTreeInstance::ExecuteOnEachAuxNode(TFunctionRef<void(const UBTAuxi
 	}
 }
 
+// 遍历并行任务并且在每个任务上面调用ExecFunc
 void FBehaviorTreeInstance::ExecuteOnEachParallelTask(TFunctionRef<void(const FBehaviorTreeParallelTask&, const int32)> ExecFunc)
 {
 	// calling ExecFunc might unregister parallel task, modifying array we're iterating on - iterator needs to be moved one step back in that case
+	// 调用ExecFunc可能会取消注册并行任务，从而修改我们要迭代的数组-在这种情况下，迭代器需要后退一步
 	for (int32 Index = 0; Index < ParallelTasks.Num(); ++Index)
 	{
 		const FBehaviorTreeParallelTask& ParallelTaskInfo = ParallelTasks[Index];
@@ -283,23 +315,27 @@ void FBehaviorTreeInstance::ExecuteOnEachParallelTask(TFunctionRef<void(const FB
 #endif // DO_ENSURE
 
 		ExecFunc(ParallelTaskInfo, Index);
-
+		// 检查索引是否正确，并且节点还是原来那个节点
 		const bool bIsStillValid = ParallelTasks.IsValidIndex(Index) && (ParallelTaskInfo.TaskNode == CachedParallelTask);
 		if (!bIsStillValid)
 		{
 			// move iterator back if current task was unregistered
+			// 如果当前的任务已经取消，就将迭代器往后一步
 			Index--;
 		}
 	}
 }
 
+// 检查实例是否具有给定执行索引的活动节点
 bool FBehaviorTreeInstance::HasActiveNode(uint16 TestExecutionIndex) const
 {
+	// 当前活动节点
 	if (ActiveNode && ActiveNode->GetExecutionIndex() == TestExecutionIndex)
 	{
 		return (ActiveNodeType == EBTActiveNode::ActiveTask);
 	}
 
+	// 并行任务节点
 	for (int32 Idx = 0; Idx < ParallelTasks.Num(); Idx++)
 	{
 		const FBehaviorTreeParallelTask& ParallelTask = ParallelTasks[Idx];
@@ -309,6 +345,7 @@ bool FBehaviorTreeInstance::HasActiveNode(uint16 TestExecutionIndex) const
 		}
 	}
 
+	// 活动辅组节点
 	for (int32 Idx = 0; Idx < ActiveAuxNodes.Num(); Idx++)
 	{
 		if (ActiveAuxNodes[Idx] && ActiveAuxNodes[Idx]->GetExecutionIndex() == TestExecutionIndex)
@@ -320,8 +357,10 @@ bool FBehaviorTreeInstance::HasActiveNode(uint16 TestExecutionIndex) const
 	return false;
 }
 
+// 停用所有活动的辅助节点并从SearchData中删除其请求
 void FBehaviorTreeInstance::DeactivateNodes(FBehaviorTreeSearchData& SearchData, uint16 InstanceIndex)
 {
+	// 从SearchData中删除对应索引的节点
 	for (int32 Idx = SearchData.PendingUpdates.Num() - 1; Idx >= 0; Idx--)
 	{
 		FBehaviorTreeSearchUpdate& UpdateInfo = SearchData.PendingUpdates[Idx];
@@ -335,6 +374,7 @@ void FBehaviorTreeInstance::DeactivateNodes(FBehaviorTreeSearchData& SearchData,
 		}
 	}
 
+	// 加入激活的并行任务
 	for (int32 Idx = 0; Idx < ParallelTasks.Num(); Idx++)
 	{
 		const FBehaviorTreeParallelTask& ParallelTask = ParallelTasks[Idx];
@@ -344,6 +384,7 @@ void FBehaviorTreeInstance::DeactivateNodes(FBehaviorTreeSearchData& SearchData,
 		}
 	}
 
+	// 加入激活的辅助节点
 	for (int32 Idx = 0; Idx < ActiveAuxNodes.Num(); Idx++)
 	{
 		if (ActiveAuxNodes[Idx])
@@ -361,12 +402,14 @@ void FBehaviorTreeInstance::DeactivateNodes(FBehaviorTreeSearchData& SearchData,
 bool FBTNodeIndex::TakesPriorityOver(const FBTNodeIndex& Other) const
 {
 	// instance closer to root is more important
+	// 离根节点越近越重要
 	if (InstanceIndex != Other.InstanceIndex)
 	{
 		return InstanceIndex < Other.InstanceIndex;
 	}
 
 	// higher priority is more important
+	// 优先级越高的越重要
 	return ExecutionIndex < Other.ExecutionIndex;
 }
 
@@ -421,6 +464,7 @@ void FBehaviorTreeSearchData::AddUniqueUpdate(const FBehaviorTreeSearchUpdate& U
 	}
 }
 
+// 
 void FBehaviorTreeSearchData::AssignSearchId()
 {
 	SearchId = NextSearchId;

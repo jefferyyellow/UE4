@@ -90,10 +90,12 @@ class AIMODULE_API UBTCompositeNode : public UBTNode
 	GENERATED_UCLASS_BODY()
 
 	/** child nodes */
+	// 复合子节点
 	UPROPERTY()
 	TArray<FBTCompositeChild> Children;
 
 	/** service nodes */
+	// 服务节点
 	UPROPERTY()
 	TArray<UBTService*> Services;
 

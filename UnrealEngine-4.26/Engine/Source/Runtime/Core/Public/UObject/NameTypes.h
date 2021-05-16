@@ -44,7 +44,7 @@ struct FNameEntryId
 	FNameEntryId(ENoInit) {}
 
 	/** Slow alphabetical order that is stable / deterministic over process runs */
-	// 缓慢的字母顺序，在过程运行中是稳定/确定的
+	// 缓慢的字母排序，在过程运行中是稳定/确定的
 	CORE_API int32 CompareLexical(FNameEntryId Rhs) const;
 	bool LexicalLess(FNameEntryId Rhs) const { return CompareLexical(Rhs) < 0; }
 
@@ -89,14 +89,16 @@ private:
 	// 从一个可用的Name中得到名字入口
 	CORE_API static FNameEntryId FromValidEName(EName Ename);
 };
-
+// 得到类型的hash值
 CORE_API uint32 GetTypeHash(FNameEntryId Id);
+// 比较名字入口的名字值和名字是否一致
 CORE_API bool operator==(FNameEntryId Id, EName Ename);
 inline bool operator==(EName Ename, FNameEntryId Id) { return Id == Ename; }
 inline bool operator!=(EName Ename, FNameEntryId Id) { return !(Id == Ename); }
 inline bool operator!=(FNameEntryId Id, EName Ename) { return !(Id == Ename); }
 
 /** Serialize as process specific unstable int */
+// 序列化处理指定的FNameEntryId
 CORE_API FArchive& operator<<(FArchive& Ar, FNameEntryId& InId);
 
 /**
@@ -122,16 +124,20 @@ typedef FNameEntryId NAME_INDEX;
 #define NAME_EXTERNAL_TO_INTERNAL(x) (x + 1)
 
 /** Special value for an FName with no number */
+// 没有数字编号的FName
 #define NAME_NO_NUMBER NAME_INTERNAL_TO_EXTERNAL(NAME_NO_NUMBER_INTERNAL)
 
 
 /** this is the character used to separate a subobject root from its subobjects in a path name. */
+// 这是用于在路径名中将子对象根与其子对象分开的字符
 #define SUBOBJECT_DELIMITER				TEXT(":")
 
 /** this is the character used to separate a subobject root from its subobjects in a path name, as a char */
+// 这是用于在路径名中将子对象根与其子对象分开的字符，char而不是widechar
 #define SUBOBJECT_DELIMITER_CHAR		':'
 
 /** These are the characters that cannot be used in general FNames */
+// 这些是常规FName中不能使用的字符
 #define INVALID_NAME_CHARACTERS			TEXT("\"' ,\n\r\t")
 
 /** These characters cannot be used in object names */
@@ -139,6 +145,7 @@ typedef FNameEntryId NAME_INDEX;
 #define INVALID_OBJECTNAME_CHARACTERS	TEXT("\"' ,/.:|&!~\n\r\t@#(){}[]=;^%$`")
 
 /** These characters cannot be used in ObjectPaths, which includes both the package path and part after the first . */
+// 这些字符不能在ObjectPaths中使用，ObjectPaths包括程序包路径和第一个字符之后的部分
 #define INVALID_OBJECTPATH_CHARACTERS	TEXT("\"' ,|&!~\n\r\t@#(){}[]=;^%$`")
 
 /** These characters cannot be used in long package names */
@@ -146,6 +153,7 @@ typedef FNameEntryId NAME_INDEX;
 #define INVALID_LONGPACKAGE_CHARACTERS	TEXT("\\:*?\"<>|' ,.&!~\n\r\t@#")
 
 /** These characters can be used in relative directory names (lowercase versions as well) */
+// 这些字符可以在相对目录名称中使用
 #define VALID_SAVEDDIRSUFFIX_CHARACTERS	TEXT("_0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz")
 
 enum class ENameCase : uint8
@@ -157,17 +165,22 @@ enum class ENameCase : uint8
 enum ELinkerNameTableConstructor    {ENAME_LinkerConstructor};
 
 /** Enumeration for finding name. */
+// 查找名字的枚举
 enum EFindName
 {
 	/** Find a name; return 0 if it doesn't exist. */
+	// 查找名字，如果没有就返回0
 	FNAME_Find,
 
 	/** Find a name or add it if it doesn't exist. */
+	// 查找名字，或者如果不存在就增加一个
 	FNAME_Add,
 
 	/** Finds a name and replaces it. Adds it if missing. This is only used by UHT and is generally not safe for threading. 
 	 * All this really is used for is correcting the case of names. In MT conditions you might get a half-changed name.
 	 */
+	 // 查找并替换名称。 如果丢失就好增加。 这仅由UHT使用，并且通常不是线程安全的。
+	 // 这实际上是用来纠正名称的大小写的。 在MT条件下，您可能会更改名字的一半。
 	FNAME_Replace_Not_Safe_For_Threading,
 };
 
@@ -207,7 +220,7 @@ private:
 #endif
 	// 名字入口头
 	FNameEntryHeader Header;
-	// 数据
+	// 数据，Ansi字符和unicode字符的union数据
 	union
 	{
 		ANSICHAR	AnsiName[NAME_SIZE];
@@ -238,15 +251,19 @@ public:
 	 *
 	 * @param OutSize must be at least GetNameLength()
 	 */
+	// 将未中止的名称复制到无需分配的TCHAR缓冲区(最后面没有以0结尾)
 	void GetUnterminatedName(TCHAR* OutName, uint32 OutSize) const;
 
 	/** Copy null-terminated name to TCHAR buffer without allocating. */
+	// 拷贝以0为结尾的名称到无需分配的TCHAR缓冲区
 	void GetName(TCHAR(&OutName)[NAME_SIZE]) const;
 
 	/** Copy null-terminated name to ANSICHAR buffer without allocating. Entry must not be wide. */
+	// 拷贝null结尾的名字到无需分配的ANSICHAR缓冲区，入口必须不是宽字符
 	CORE_API void GetAnsiName(ANSICHAR(&OutName)[NAME_SIZE]) const;
 
 	/** Copy null-terminated name to WIDECHAR buffer without allocating. Entry must be wide. */
+	// 拷贝null结尾的名字到无需分配的WIDECHAR缓冲区，入口必须是宽字符
 	CORE_API void GetWideName(WIDECHAR(&OutName)[NAME_SIZE]) const;
 
 	/** Copy name to a dynamically allocated FString. */
@@ -254,18 +271,23 @@ public:
 	CORE_API FString GetPlainNameString() const;
 
 	/** Copy name to a FStringBuilderBase. */
+	// 
 	CORE_API void GetPlainNameString(FStringBuilderBase& OutString) const;
 
 	/** Appends name to string. May allocate. */
+	// 将名字附加到字符串的尾部 
 	CORE_API void AppendNameToString(FString& OutString) const;
 
 	/** Appends name to string builder. */
+	// 将名字附加到字符串builder
 	CORE_API void AppendNameToString(FStringBuilderBase& OutString) const;
 
 	/** Appends name to string builder. Entry must not be wide. */
+	//  将名字附加到字符串的尾部,入口不能说宽字符
 	CORE_API void AppendAnsiNameToString(FAnsiStringBuilderBase& OutString) const;
 
 	/** Appends name to string with path separator using FString::PathAppend(). */
+	// 使用路径分隔符附加名字到字符串，使用FString::PathAppend()
 	CORE_API void AppendNameToPathString(FString& OutString) const;
 
 
@@ -276,13 +298,14 @@ public:
 	 * @param	bIsPureAnsi		Whether name is pure ANSI or not
 	 * @return	required size of FNameEntry structure to hold this string (might be wide or ansi)
 	 */
+	// 返回以字节为单位的大小，这个不等于sizeof(FNameEntry)，我们只计算实际占用的字节，而不是整个结构体的字节数
 	static int32 GetSize( int32 Length, bool bIsPureAnsi );
 	static CORE_API int32 GetSize(const TCHAR* Name);
-
+	// 返回以字节为单位的大小
 	CORE_API int32 GetSizeInBytes() const;
 
 	CORE_API void Write(FArchive& Ar) const;
-
+	// 得到名字入口中，名字数据的偏移
 	static int32 GetDataOffset();
 	struct FNameStringView MakeView(union FNameBuffer& OptionalDecodeBuffer) const;
 private:
@@ -296,17 +319,23 @@ private:
 	static void Decode(ANSICHAR* Name, uint32 Len);
 	static void Decode(WIDECHAR* Name, uint32 Len);
 
+	// 保存名字，内含编码
 	void StoreName(const ANSICHAR* InName, uint32 Len);
 	void StoreName(const WIDECHAR* InName, uint32 Len);
+	// 拷贝指定长度的，不一定有终止符的名字
 	void CopyUnterminatedName(ANSICHAR* OutName) const;
+	// 拷贝指定长度的，不一定有终止符的名字
 	void CopyUnterminatedName(WIDECHAR* OutName) const;
+	// 拷贝并且转换名字
 	void CopyAndConvertUnterminatedName(TCHAR* OutName) const;
+	// 根据是ANSI和UNICODE，得到对应的字符串
 	const ANSICHAR* GetUnterminatedName(ANSICHAR(&OptionalDecodeBuffer)[NAME_SIZE]) const;
 	const WIDECHAR* GetUnterminatedName(WIDECHAR(&OptionalDecodeBuffer)[NAME_SIZE]) const;
 };
 
 /**
  *  This struct is only used during loading/saving and is not part of the runtime costs
+ * // 该结构体仅用于在加载/保存并且不是runtime消耗的一部分
  */
 struct FNameEntrySerialized
 {
@@ -320,15 +349,18 @@ struct FNameEntrySerialized
 	};
 
 	// These are not used anymore but recalculated on save to maintain serialization format
+	// 这些不再使用，但在保存时重新计算以保持序列化格式
 	uint16 NonCasePreservingHash = 0;
 	uint16 CasePreservingHash = 0;
 
+	// 从一个FNameEntry来构造FNameEntrySerialized
 	FNameEntrySerialized(const FNameEntry& NameEntry);
 	FNameEntrySerialized(enum ELinkerNameTableConstructor) {}
 
 	/**
 	 * Returns direct access to null-terminated name if narrow
 	 */
+	// 如果宅字符，返回可以直接访问的null结尾的名字
 	ANSICHAR const* GetAnsiName() const
 	{
 		check(!bIsWide);
@@ -338,6 +370,7 @@ struct FNameEntrySerialized
 	/**
 	 * Returns direct access to null-terminated name if wide
 	 */
+	// 如果是宽字符，返回可以直接访问的null结尾的名字
 	WIDECHAR const* GetWideName() const
 	{
 		check(bIsWide);
@@ -347,6 +380,7 @@ struct FNameEntrySerialized
 	/**
 	 * Returns FString of name portion minus number.
 	 */
+	// 返回不包括编号部分的名字的FString
 	CORE_API FString GetPlainNameString() const;	
 
 	friend CORE_API FArchive& operator<<(FArchive& Ar, FNameEntrySerialized& E);
@@ -360,6 +394,7 @@ struct FNameEntrySerialized
  * The minimum amount of data required to reconstruct a name
  * This is smaller than FName, but you lose the case-preserving behavior
  */
+// 重构名称所需的最少数据量。这比FName小，但是失去了保留大小写的行为
 struct FMinimalName
 {
 	FMinimalName() {}
@@ -381,8 +416,10 @@ struct FMinimalName
 	}
 
 	/** Index into the Names array (used to find String portion of the string/number pair) */
+	// 名字数组的索引
 	FNameEntryId	Index;
 	/** Number portion of the string/number pair (stored internally as 1 more than actual, so zero'd memory will be the default, no-instance case) */
+	// 字符串/数字对的数字部分
 	int32			Number = NAME_NO_NUMBER_INTERNAL;
 };
 
@@ -391,6 +428,8 @@ struct FMinimalName
  * This will be the same size as FName when WITH_CASE_PRESERVING_NAME is 1, and is used to store an FName in cases where 
  * the size of FName must be constant between build configurations (eg, blueprint bytecode)
  */
+// 重建保留大小写名称所需的全部数据量，当WITH_CASE_PRESERVING_NAME为1时，该大小将与FName相同，
+// 并且在以下情况下用于存储FName：在构建配置之间，FName的大小必须恒定（例如， ，蓝图字节码）
 struct FScriptName
 {
 	FScriptName() {}
@@ -412,14 +451,17 @@ struct FScriptName
 	{
 		return !ComparisonIndex && Number == NAME_NO_NUMBER_INTERNAL;
 	}
-
+	// 转换为字符串
 	CORE_API FString ToString() const;
 
 	/** Index into the Names array (used to find String portion of the string/number pair used for comparison) */
+	// 名称数组的索引，用于查找字符串/编码中字符串部分用于比较
 	FNameEntryId	ComparisonIndex;
 	/** Index into the Names array (used to find String portion of the string/number pair used for display) */
+	// 名称数组的索引，用于查找字符串/编码中字符串部分用于显示
 	FNameEntryId	DisplayIndex;
 	/** Number portion of the string/number pair (stored internally as 1 more than actual, so zero'd memory will be the default, no-instance case) */
+	// 找字符串/编码中的编码部分
 	uint32			Number = NAME_NO_NUMBER_INTERNAL;
 };
 
@@ -428,6 +470,8 @@ struct FScriptName
  * an index into a table of unique strings and an instance number.
  * Names are case-insensitive, but case-preserving (when WITH_CASE_PRESERVING_NAME is 1)
  */
+// 全世界可用的公开名字。名称是作为索引的组合存在一个唯一的字符串和实例编码的表中。
+// 名字是一个不区分大小写的，但是如果WITH_CASE_PRESERVING_NAME为1的话，大小写保留。
 class CORE_API FName
 {
 public:
@@ -937,13 +981,13 @@ public:
 	/**
 	 * @return Size of all name entries.
 	 */
-	// 所有名字入口的大小
+	// 所有名字入口的内存大小
 	static int32 GetNameEntryMemorySize();
 
 	/**
 	* @return Size of Name Table object as a whole
 	*/
-	// 名称表对象整体的大小
+	// 名称表对象整体的内存大小
 	static int32 GetNameTableMemorySize();
 
 	/**
@@ -955,7 +999,7 @@ public:
 	/**
 	 * @return number of wide names in name table
 	 */
-	// 名称表中wide名称的数目
+	// 名称表中宽字符名称的数目
 	static int32 GetNumWideNames();
 
 	static TArray<const FNameEntry*> DebugDump();
@@ -1033,7 +1077,7 @@ private:
 
 
 
-
+	// FNameEntryId是否合法
 	static bool IsWithinBounds(FNameEntryId Id);
 };
 
@@ -1052,51 +1096,61 @@ DECLARE_INTRINSIC_TYPE_LAYOUT(FName);
 DECLARE_INTRINSIC_TYPE_LAYOUT(FMinimalName);
 DECLARE_INTRINSIC_TYPE_LAYOUT(FScriptName);
 
+// 得到类型Hash
 FORCEINLINE uint32 GetTypeHash(FName Name)
 {
 	return GetTypeHash(Name.GetComparisonIndex()) + Name.GetNumber();
 }
 
+// 得到类型Hash
 FORCEINLINE uint32 GetTypeHash(FMinimalName Name)
 {
 	return GetTypeHash(Name.Index) + Name.Number;
 }
 
+// 得到类型Hash
 FORCEINLINE uint32 GetTypeHash(FScriptName Name)
 {
 	return GetTypeHash(Name.ComparisonIndex) + Name.Number;
 }
 
+// FName到FString的转换
 FORCEINLINE FString LexToString(const FName& Name)
 {
 	return Name.ToString();
 }
 
+// 从Str到FName
 FORCEINLINE void LexFromString(FName& Name, const TCHAR* Str)
 {
 	Name = FName(Str);
 }
 
+// FName到FMinimalName的转换
 FORCEINLINE FMinimalName NameToMinimalName(const FName& InName)
 {
 	return FMinimalName(InName.GetComparisonIndex(), InName.GetNumber());
 }
 
+// FMinimalName到FName的转换
 FORCEINLINE FName MinimalNameToName(const FMinimalName& InName)
 {
 	return FName(InName.Index, InName.Index, InName.Number);
 }
 
+// FName到FScriptName的转换
 FORCEINLINE FScriptName NameToScriptName(const FName& InName)
 {
 	return FScriptName(InName.GetComparisonIndex(), InName.GetDisplayIndex(), InName.GetNumber());
 }
 
+// FScriptName到FName的转换
 FORCEINLINE FName ScriptNameToName(const FScriptName& InName)
 {
 	return FName(InName.ComparisonIndex, InName.DisplayIndex, InName.Number);
 }
 
+// 将Name附加到Builder中
 inline FStringBuilderBase& operator<<(FStringBuilderBase& Builder, const FName& Name)
 {
 	Name.AppendString(Builder);

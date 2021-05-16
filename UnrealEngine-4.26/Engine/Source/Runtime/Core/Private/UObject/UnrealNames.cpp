@@ -64,13 +64,14 @@ int32 FNameEntry::GetDataOffset()
 /*-----------------------------------------------------------------------------
 	FName helpers. 
 -----------------------------------------------------------------------------*/
-
+// FNameEntryHeader类型的A和B是否相等
 static bool operator==(FNameEntryHeader A, FNameEntryHeader B)
 {
 	static_assert(sizeof(FNameEntryHeader) == 2, "");
 	return (uint16&)A == (uint16&)B;
 }
 
+// 不支持的转换
 template<typename FromCharType, typename ToCharType>
 ToCharType* ConvertInPlace(FromCharType* Str, uint32 Len)
 {
@@ -78,6 +79,8 @@ ToCharType* ConvertInPlace(FromCharType* Str, uint32 Len)
 	return Str;
 }
 
+
+// Ansi字符串转换成Unicode字符串(这种转换只能用于字符编码中Ansi和Unicode的编码一样的字符)
 template<>
 WIDECHAR* ConvertInPlace<ANSICHAR, WIDECHAR>(ANSICHAR* Str, uint32 Len)
 {
@@ -89,6 +92,7 @@ WIDECHAR* ConvertInPlace<ANSICHAR, WIDECHAR>(ANSICHAR* Str, uint32 Len)
 	return reinterpret_cast<WIDECHAR*>(Str);
 }
 
+// Unicode字符串转换成Ansi字符串（这种转换只能用于字符编码中Ansi和Unicode的编码一样的字符）
 template<>
 ANSICHAR* ConvertInPlace<WIDECHAR, ANSICHAR>(WIDECHAR* Str, uint32 Len)
 {
@@ -107,35 +111,41 @@ union FNameBuffer
 	WIDECHAR WideName[NAME_SIZE];
 };
 
+// 名字和字符串视图
 struct FNameStringView
 {
 	FNameStringView() : Data(nullptr), Len(0), bIsWide(false) {}
 	FNameStringView(const ANSICHAR* Str, uint32 Len_) : Ansi(Str), Len(Len_), bIsWide(false) {}
 	FNameStringView(const WIDECHAR* Str, uint32 Len_) : Wide(Str), Len(Len_), bIsWide(true) {}
 
+	// 字符数据指针
 	union
 	{
 		const void* Data;
 		const ANSICHAR* Ansi;
 		const WIDECHAR* Wide;
 	};
-
+	// 长度
 	uint32 Len;
+	// 是否宽字符
 	bool bIsWide;
 
 	bool IsAnsi() const { return !bIsWide; }
 
+	// 包括终止符在内的字节的长度
 	int32 BytesWithTerminator() const
 	{
 		return (Len + 1) * (bIsWide ? sizeof(WIDECHAR) : sizeof(ANSICHAR));
 	}
 
+	// 排除终止符在内的字节的长度
 	int32 BytesWithoutTerminator() const
 	{
 		return Len * (bIsWide ? sizeof(WIDECHAR) : sizeof(ANSICHAR));
 	}
 };
 
+// 两个FNameStringView是否相等
 template<ENameCase Sensitivity>
 FORCEINLINE bool EqualsSameDimensions(FNameStringView A, FNameStringView B)
 {
@@ -154,6 +164,7 @@ FORCEINLINE bool EqualsSameDimensions(FNameStringView A, FNameStringView B)
 
 }
 
+// 两个FNameStringView是否相等
 template<ENameCase Sensitivity>
 FORCEINLINE bool Equals(FNameStringView A, FNameStringView B)
 {
@@ -167,6 +178,7 @@ FORCEINLINE bool Equals(FNameStringView A, FNameStringView B)
 #define OUTLINE_DECODE_BUFFER
 #endif
 
+// 两个FNameStringView是否相等
 template<ENameCase Sensitivity>
 OUTLINE_DECODE_BUFFER bool EqualsSameDimensions(const FNameEntry& Entry, FNameStringView Name)
 {
@@ -175,6 +187,7 @@ OUTLINE_DECODE_BUFFER bool EqualsSameDimensions(const FNameEntry& Entry, FNameSt
 }
 
 /** Remember to update natvis if you change these */
+// 块的bit是13 块的Offset的bit是16
 enum { FNameMaxBlockBits = 13 }; // Limit block array a bit, still allowing 8k * block size = 1GB - 2G of FName entry data
 enum { FNameBlockOffsetBits = 16 };
 // 最大的名字块数目 8192
@@ -251,9 +264,13 @@ struct FNameSlot
 {
 	// Use the remaining few bits to store a hash that can determine inequality
 	// during probing without touching entry data
+	// 名字的块和块内偏移的位的数目 29位
 	static constexpr uint32 EntryIdBits = FNameMaxBlockBits + FNameBlockOffsetBits;
+	// 块ID的掩码 低29位为1
 	static constexpr uint32 EntryIdMask = (1 << EntryIdBits) - 1;
+	// probe的hash位 29位
 	static constexpr uint32 ProbeHashShift = EntryIdBits;
+	// probe的hash掩码 高3位为1
 	static constexpr uint32 ProbeHashMask = ~EntryIdMask;
 	
 	FNameSlot() {}
@@ -262,28 +279,32 @@ struct FNameSlot
 	{
 		check(!(Value.ToUnstableInt() & ProbeHashMask) && !(ProbeHash & EntryIdMask) && Used());
 	}
-
+	// 得到ID
 	FNameEntryId GetId() const { return FNameEntryId::FromUnstableInt(IdAndHash & EntryIdMask); }
+	// 得到hash，通过Hash掩码
 	uint32 GetProbeHash() const { return IdAndHash & ProbeHashMask; }
 	
 	bool operator==(FNameSlot Rhs) const { return IdAndHash == Rhs.IdAndHash; }
 
 	bool Used() const { return !!IdAndHash;  }
 private:
+	// ID和Hash共用一个uint32
 	uint32 IdAndHash = 0;
 };
 
 /**
  * Thread-safe paged FNameEntry allocator
  */
+// 线程安全的FNameEntry分配器，一个块有64K个FName
 class FNameEntryAllocator
 {
 public:
 	enum { Stride = alignof(FNameEntry) };
-	// 块大小 64K * 4 = 256K
+	// 块大小 64K个FName
 	enum { BlockSizeBytes = Stride * FNameBlockOffsets };
 
 	/** Initializes all member variables. */
+	// 初始化所有的成员变量
 	FNameEntryAllocator()
 	{
 		LLM_SCOPE(ELLMTag::FName);
@@ -298,10 +319,11 @@ public:
 		}
 	}
 
+	// 预留指定数目的块
 	void ReserveBlocks(uint32 Num)
 	{
 		FWriteScopeLock _(Lock);
-
+		// 分配指定的块
 		for (uint32 Idx = Num - 1; Idx > CurrentBlock && Blocks[Idx] == nullptr; --Idx)
 		{
 			Blocks[Idx] = AllocBlock();
@@ -315,6 +337,7 @@ public:
 	 * @param   Size  Size in bytes to allocate, 
 	 * @return  Allocation of passed in size cast to a FNameEntry pointer.
 	 */
+	// 分配请求的字节数并返回一个可用于访问它们的ID
 	template <class ScopeLock>
 	FNameEntryHandle Allocate(uint32 Bytes)
 	{
@@ -325,32 +348,39 @@ public:
 
 		// Allocate a new pool if current one is exhausted. We don't worry about a little bit
 		// of waste at the end given the relative size of pool to average and max allocation.
+		// 如果当前的意见耗尽，分配一个新的pool，相比较于池大小和最大的分配大小的相对尺寸，我们无需担心块最后的一点小的浪费，
 		if (BlockSizeBytes - CurrentByteCursor < Bytes)
 		{
 			AllocateNewBlock();
 		}
 
 		// Use current cursor position for this allocation and increment cursor for next allocation
+		// 当前的块内偏移
 		uint32 ByteOffset = CurrentByteCursor;
+		// 增加游标到下一个可分配处
 		CurrentByteCursor += Bytes;
 		
 		check(ByteOffset % Stride == 0 && ByteOffset / Stride < FNameBlockOffsets);
-
+		// ByteOffset / Stride表示块内的索引
+		// CurrentBlock块内索引
 		return FNameEntryHandle(CurrentBlock, ByteOffset / Stride);
 	}
 
 	template<class ScopeLock>
 	FNameEntryHandle Create(FNameStringView Name, TOptional<FNameEntryId> ComparisonId, FNameEntryHeader Header)
 	{
+		// 计算出FName需要的字节数
 		FNameEntryHandle Handle = Allocate<ScopeLock>(FNameEntry::GetDataOffset() + Name.BytesWithoutTerminator());
+		// 得到对应的入口
 		FNameEntry& Entry = Resolve(Handle);
 
 #if WITH_CASE_PRESERVING_NAME
+		// 如果ComparisonId设置了，就用设置好的ComparisonId，如果没有设置，就用Handle
 		Entry.ComparisonId = ComparisonId.IsSet() ? ComparisonId.GetValue() : FNameEntryId(Handle);
 #endif
-
+		// 设置头
 		Entry.Header = Header;
-		
+		// 保存名字
 		if (Name.bIsWide)
 		{
 			Entry.StoreName(Name.Wide, Name.Len);
@@ -363,6 +393,7 @@ public:
 		return Handle;
 	}
 
+	// 取得FNameEntryHandle对应的FNameEntry
 	FNameEntry& Resolve(FNameEntryHandle Handle) const
 	{
 		// Lock not needed
@@ -380,6 +411,7 @@ public:
 	}
 
 	/** Returns the number of blocks that have been allocated so far for names. */
+	// 返回当前为names分配的blocks的数目
 	uint32 NumBlocks() const
 	{
 		return CurrentBlock + 1;
@@ -387,6 +419,7 @@ public:
 	
 	uint8** GetBlocksForDebugVisualizer() { return Blocks; }
 
+	// 转储所有的Block
 	void DebugDump(TArray<const FNameEntry*>& Out) const
 	{
 		FRWScopeLock _(Lock, FRWScopeLockType::SLT_ReadOnly);
@@ -400,6 +433,7 @@ public:
 	}
 
 private:
+	// 转储单个Block
 	static void DebugDumpBlock(const uint8* It, uint32 BlockSize, TArray<const FNameEntry*>& Out)
 	{
 		const uint8* End = It + BlockSize - FNameEntry::GetDataOffset();
@@ -417,16 +451,18 @@ private:
 			}
 		}
 	}
-
+	// 分配一个Block
 	static uint8* AllocBlock()
 	{
 		return (uint8*)FMemory::MallocPersistentAuxiliary(BlockSizeBytes, FNAME_BLOCK_ALIGNMENT);
 	}
 	
+	// 分配一个新的Block
 	void AllocateNewBlock()
 	{
 		LLM_SCOPE(ELLMTag::FName);
 		// Null-terminate final entry to allow DebugDump() entry iteration
+		// 以Null结尾的最后一个entry允许DebugDump的entry迭代
 		if (CurrentByteCursor + FNameEntry::GetDataOffset() <= BlockSizeBytes)
 		{
 			FNameEntry* Terminator = (FNameEntry*)(Blocks[CurrentBlock] + CurrentByteCursor);
@@ -436,12 +472,15 @@ private:
 #if FNAME_WRITE_PROTECT_PAGES
 		FPlatformMemory::PageProtect(Blocks[CurrentBlock], BlockSizeBytes, /* read */ true, /* write */ false);
 #endif
+		// 当前的Block索引增加
 		++CurrentBlock;
+		// 当前的游标增加
 		CurrentByteCursor = 0;
 
 		check(CurrentBlock < FNameMaxBlocks);
 
 		// Allocate block unless it's already reserved
+		// 如果没有预留，就分配
 		if (Blocks[CurrentBlock] == nullptr)
 		{
 			Blocks[CurrentBlock] = AllocBlock();
@@ -458,6 +497,8 @@ private:
 // Reducing contention matters when multiple threads create FNames in parallel.
 // Contention exists in some tool scenarios, for instance between main thread
 // and asset data gatherer thread during editor startup.
+// 增加分片可以减少争用，但会占用更多内存并增加缓存压力。 当多个线程并行创建FName时，减少争用很重要。
+// 在某些工具方案中存在争用，例如在编辑器启动期间主线程和资产数据收集器线程之间。
 #if WITH_CASE_PRESERVING_NAME
 enum { FNamePoolShardBits = 10 };
 #else
@@ -465,7 +506,9 @@ enum { FNamePoolShardBits = 4 };
 #endif
 
 enum { FNamePoolShards = 1 << FNamePoolShardBits };
+// Slot的初始的数量表示的位数，8位，256
 enum { FNamePoolInitialSlotBits = 8 };
+// Slot的数目
 enum { FNamePoolInitialSlotsPerShard = 1 << FNamePoolInitialSlotBits };
 
 /** Hashes name into 64 bits that determines shard and slot index.
@@ -479,11 +522,21 @@ enum { FNamePoolInitialSlotsPerShard = 1 << FNamePoolInitialSlotBits };
  *	nor copy and deobfuscate a name needlessy. It also allows growing the hash table
  *	without rehashing the strings, since the unmasked slot index would be known.
  */
+// 将Name散列为64位，用于确定分片和插槽索引。
+// 哈希的一小部分也存储在插槽和条目的未使用位中,前者通过访问较少的入口数据来优化线性探测，
+// 后者通过避免复制和去混淆入口数据来优化线性探测.
+// 
+// 插槽索引可以存储在插槽中，最少化存储非传输/测试配置中，这会通过使插槽大小增加一倍
+// 但基本上不会触及输入数据，也不会不必要地复制和模糊化名称
+// 它还允许增长哈希表。无需重新散列字符串，因为将知道未屏蔽的插槽索引。
 struct FNameHash
 {
 	uint32 ShardIndex;
+	// 确定从哪个插槽索引开始探测
 	uint32 UnmaskedSlotIndex; // Determines at what slot index to start probing
+	// 探测插槽时帮助剔除是否相等（解码+ strnicmp）
 	uint32 SlotProbeHash; // Helps cull equality checks (decode + strnicmp) when probing slots
+	// 在探测检查条目时帮助剔除均等性检查
 	FNameEntryHeader EntryProbeHeader; // Helps cull equality checks when probing inspects entries
 
 	static constexpr uint64 AlgorithmId = 0xC1640000;
@@ -491,9 +544,11 @@ struct FNameHash
 	template<class CharType>
 	static uint64 GenerateHash(const CharType* Str, int32 Len)
 	{
+		// 直接调用city hash 64的算法
 		return CityHash64(reinterpret_cast<const char*>(Str), Len * sizeof(CharType));
 	}
 
+	// 先将字符转换为小写，然后hash
 	template<class CharType>
 	static uint64 GenerateLowerCaseHash(const CharType* Str, uint32 Len);
 
@@ -505,18 +560,22 @@ struct FNameHash
 	template<class CharType>
 	FNameHash(const CharType* Str, int32 Len, uint64 Hash)
 	{
+		// 将64位的hash拆分成高低位
 		uint32 Hi = static_cast<uint32>(Hash >> 32);
 		uint32 Lo = static_cast<uint32>(Hash);
 
 		// "None" has FNameEntryId with a value of zero
 		// Always set a bit in SlotProbeHash for "None" to distinguish unused slot values from None
 		// @see FNameSlot::Used()
+		// 
 		uint32 IsNoneBit = IsAnsiNone(Str, Len) << FNameSlot::ProbeHashShift;
 
 		static constexpr uint32 ShardMask = FNamePoolShards - 1;
 		static_assert((ShardMask & FNameSlot::ProbeHashMask) == 0, "Masks overlap");
 
+		// 分片索引
 		ShardIndex = Hi & ShardMask;
+		// 插槽索引
 		UnmaskedSlotIndex = Lo;
 		SlotProbeHash = (Hi & FNameSlot::ProbeHashMask) | IsNoneBit;
 		EntryProbeHeader.Len = Len;
@@ -536,6 +595,7 @@ struct FNameHash
 		return UnmaskedSlotIndex & SlotMask;
 	}
 
+	// 通过索引和掩码，得到起始索引
 	static uint32 GetProbeStart(uint32 UnmaskedSlotIndex, uint32 SlotMask)
 	{
 		return UnmaskedSlotIndex & SlotMask;
@@ -573,6 +633,7 @@ struct FNameHash
 	}
 };
 
+// 先将字符转换为小写，然后hash
 template<class CharType>
 FORCENOINLINE uint64 FNameHash::GenerateLowerCaseHash(const CharType* Str, uint32 Len)
 {
@@ -599,6 +660,7 @@ FORCENOINLINE FNameHash HashLowerCase(const CharType* Str, uint32 Len)
 template<ENameCase Sensitivity>
 FNameHash HashName(FNameStringView Name);
 
+// 创建FNameHash
 template<>
 FNameHash HashName<ENameCase::IgnoreCase>(FNameStringView Name)
 {
@@ -610,6 +672,7 @@ FNameHash HashName<ENameCase::CaseSensitive>(FNameStringView Name)
 	return Name.IsAnsi() ? FNameHash(Name.Ansi, Name.Len) : FNameHash(Name.Wide, Name.Len);
 }
 
+// 名字值
 template<ENameCase Sensitivity>
 struct FNameValue
 {
@@ -623,7 +686,9 @@ struct FNameValue
 		, Hash(InHash)
 	{}
 
+	// 视图
 	FNameStringView Name;
+	// Hash值
 	FNameHash Hash;
 	TOptional<FNameEntryId> ComparisonId;
 };
@@ -639,6 +704,7 @@ struct FNullScopeLock
 	FNullScopeLock(FRWLock&) {}
 };
 
+// 名字池基类
 class alignas(PLATFORM_CACHE_LINE_SIZE) FNamePoolShardBase : FNoncopyable
 {
 public:
@@ -646,9 +712,11 @@ public:
 	{
 		LLM_SCOPE(ELLMTag::FName);
 		Entries = &InEntries;
-
+		
+		// 分配初始的slot数组
 		Slots = (FNameSlot*)FMemory::Malloc(FNamePoolInitialSlotsPerShard * sizeof(FNameSlot), alignof(FNameSlot));
 		memset(Slots, 0, FNamePoolInitialSlotsPerShard * sizeof(FNameSlot));
+		// 容量的掩码
 		CapacityMask = FNamePoolInitialSlotsPerShard - 1;
 	}
 
@@ -663,7 +731,7 @@ public:
 		NumCreatedEntries = 0;
 		NumCreatedWideEntries = 0;
 	}
-
+	// 容量
 	uint32 Capacity() const	{ return CapacityMask + 1; }
 
 	uint32 NumCreated() const { return NumCreatedEntries; }
@@ -681,6 +749,7 @@ protected:
 	uint32 CapacityMask = 0;
 	FNameSlot* Slots = nullptr;
 	FNameEntryAllocator* Entries = nullptr;
+	// 创建的Entry的数目
 	uint32 NumCreatedEntries = 0;
 	uint32 NumCreatedWideEntries = 0;
 
@@ -692,10 +761,12 @@ protected:
 	}
 };
 
+// 名字池分片
 template<ENameCase Sensitivity>
 class FNamePoolShard : public FNamePoolShardBase
 {
 public:
+	// 找到FNameValue对应的入口ID
 	FNameEntryId Find(const FNameValue<Sensitivity>& Value) const
 	{
 		FRWScopeLock _(Lock, FRWScopeLockType::SLT_ReadOnly);
@@ -708,29 +779,32 @@ public:
 	{
 		ScopeLock _(Lock);
 		FNameSlot& Slot = Probe(Value);
-
+		// 找到对应的Slot
 		if (Slot.Used())
 		{
 			return Slot.GetId();
 		}
 
+		// 创建一个新的Entry
 		FNameEntryId NewEntryId = Entries->Create<ScopeLock>(Value.Name, Value.ComparisonId, Value.Hash.EntryProbeHeader);
-
+		// 将新的slot放入找到的Slot中
 		ClaimSlot(Slot, FNameSlot(NewEntryId, Value.Hash.SlotProbeHash));
-
+		// 增加创建的Entry
 		++NumCreatedEntries;
+		// 增加创建的Wide Entry
 		NumCreatedWideEntries += Value.Name.bIsWide;
 		bCreatedNewEntry = true;
-
+		// 返回新创建的Entry ID
 		return NewEntryId;
 	}
 
+	// 插入一个已经存在的Entry
 	void InsertExistingEntry(FNameHash Hash, FNameEntryId ExistingId)
 	{
 		FNameSlot NewLookup(ExistingId, Hash.SlotProbeHash);
 
 		FRWScopeLock _(Lock, FRWScopeLockType::SLT_Write);
-		 
+		// 如果Hash对应的slot空闲，传入的Entry放入找到的Slot中
 		FNameSlot& Slot = Probe(Hash.UnmaskedSlotIndex, [=](FNameSlot Old) { return Old == NewLookup; });
 		if (!Slot.Used())
 		{
@@ -738,11 +812,14 @@ public:
 		}
 	}
 
+	// 预留数量
 	void Reserve(uint32 Num)
 	{
+		// 需要多保留一些
 		uint32 WantedCapacity = FMath::RoundUpToPowerOfTwo(Num * LoadFactorDivisor / LoadFactorQuotient);
 
 		FWriteScopeLock _(Lock);
+		// 如果想要的容量比现在的容量大，就需要增长
 		if (WantedCapacity > Capacity())
 		{
 			Grow(WantedCapacity);
@@ -755,17 +832,19 @@ private:
 		UnusedSlot = NewValue;
 
 		++UsedSlots;
+		// 超过90%，就扩展
 		if (UsedSlots * LoadFactorDivisor >= LoadFactorQuotient * Capacity())
 		{
 			Grow();
 		}
 	}
-
+	// 直接扩展成原来的2倍容量
 	void Grow()
 	{
 		Grow(Capacity() * 2);
 	}
 
+	// 增长到新的容量
 	void Grow(const uint32 NewCapacity)
 	{
 		LLM_SCOPE(ELLMTag::FName);
@@ -773,15 +852,17 @@ private:
 		const uint32 OldUsedSlots = UsedSlots;
 		const uint32 OldCapacity = Capacity();
 
+		// 分配新的slots,并初始化为0
 		Slots = (FNameSlot*)FMemory::Malloc(NewCapacity * sizeof(FNameSlot), alignof(FNameSlot));
 		memset(Slots, 0, NewCapacity * sizeof(FNameSlot));
 		UsedSlots = 0;
 		CapacityMask = NewCapacity - 1;
 
-
+		// 将原来的slot中的放到新的里面去
 		for (uint32 OldIdx = 0; OldIdx < OldCapacity; ++OldIdx)
 		{
 			const FNameSlot& OldSlot = OldSlots[OldIdx];
+			// slot使用了的话，需要放入新的里面去
 			if (OldSlot.Used())
 			{
 				FNameHash Hash = Rehash(OldSlot.GetId());
@@ -792,11 +873,12 @@ private:
 		}
 
 		check(OldUsedSlots == UsedSlots);
-
+		// 释放老的
 		FMemory::Free(OldSlots);
 	}
 
 	/** Find slot containing value or the first free slot that should be used to store it  */
+	// 找到包含值或者第一个空闲的slot用于保存
 	FORCEINLINE FNameSlot& Probe(const FNameValue<Sensitivity>& Value) const
 	{
 		return Probe(Value.Hash.UnmaskedSlotIndex, 
@@ -805,13 +887,16 @@ private:
 	}
 
 	/** Find slot that fulfills predicate or the first free slot  */
+	// 找到满足条件的slot或者第一个空闲的slot
 	template<class PredicateFn>
 	FORCEINLINE FNameSlot& Probe(uint32 UnmaskedSlotIndex, PredicateFn Predicate) const
 	{
 		const uint32 Mask = CapacityMask;
+		// 从开始的slot开始遍历
 		for (uint32 I = FNameHash::GetProbeStart(UnmaskedSlotIndex, Mask); true; I = (I + 1) & Mask)
 		{
 			FNameSlot& Slot = Slots[I];
+			// 如果slot空闲或者符合谓词条件，就返回它
 			if (!Slot.Used() || Predicate(Slot))
 			{
 				return Slot;
@@ -819,41 +904,52 @@ private:
 		}
 	}
 
+	// 从FNameEntryId得到对应的FNameHash
 	OUTLINE_DECODE_BUFFER FNameHash Rehash(FNameEntryId EntryId)
 	{
+		// 根据ID从分配器里面找到对应的FNameEntry
 		const FNameEntry& Entry = Entries->Resolve(EntryId);
 		FNameBuffer DecodeBuffer;
+		// 从FNameStringView得到HashName
 		return HashName<Sensitivity>(Entry.MakeView(DecodeBuffer));
 	}
 };
 
 
+// 名字池
 class FNamePool
 {
 public:
 	FNamePool();
-	
+	// 在分配器里面保留NumBlocks个字节的Block，所有的分配里面总共保留NumEntries个Entries
 	void			Reserve(uint32 NumBlocks, uint32 NumEntries);
+	// 保存名字
 	FNameEntryId	Store(FNameStringView View);
+	// 查找名字
 	FNameEntryId	Find(FNameStringView View) const;
 	FNameEntryId	Find(EName Ename) const;
 	const EName*	FindEName(FNameEntryId Id) const;
 
 	/** @pre !!Handle */
+	// 根据Handle得到名字NameEntry
 	FNameEntry&		Resolve(FNameEntryHandle Handle) const { return Entries.Resolve(Handle); }
-
+	// Handle是否合法
 	bool			IsValid(FNameEntryHandle Handle) const;
-
+	// 批量锁定和解锁
 	void			BatchLock();
 	FNameEntryId	BatchStore(const FNameComparisonValue& ComparisonValue);
 	void			BatchUnlock();
 
 	/// Stats and debug related functions ///
-
+	// Entries的数目
 	uint32			NumEntries() const;
+	// Ansi Entries的数目
 	uint32			NumAnsiEntries() const;
+	// Unicode Entries的数目
 	uint32			NumWideEntries() const;
+	// Block块的数目
 	uint32			NumBlocks() const { return Entries.NumBlocks(); }
+	// Slots的数目
 	uint32			NumSlots() const;
 	void			LogStats(FOutputDevice& Ar) const;
 	uint8**			GetBlocksForDebugVisualizer() { return Entries.GetBlocksForDebugVisualizer(); }
@@ -861,27 +957,34 @@ public:
 
 private:
 	enum { MaxENames = 512 };
-
+	// 分配器
 	FNameEntryAllocator Entries;
 
 #if WITH_CASE_PRESERVING_NAME
+	// 显示分片
 	FNamePoolShard<ENameCase::CaseSensitive> DisplayShards[FNamePoolShards];
 #endif
+	// 比较分片
 	FNamePoolShard<ENameCase::IgnoreCase> ComparisonShards[FNamePoolShards];
 
 	// Put constant lookup on separate cache line to avoid it being constantly invalidated by insertion
+	// 将持续查找放在单独的缓存行上，以防止其因插入而不断失效
 	alignas(PLATFORM_CACHE_LINE_SIZE) FNameEntryId ENameToEntry[NAME_MaxHardcodedNameIndex] = {};
+	// 
 	uint32 LargestEnameUnstableId;
+	// EName和EntryId的Hash表
 	TMap<FNameEntryId, EName, TInlineSetAllocator<MaxENames>> EntryToEName;
 };
 
 FNamePool::FNamePool()
 {
+	// 初始化比较分片
 	for (FNamePoolShardBase& Shard : ComparisonShards)
 	{
 		Shard.Initialize(Entries);
 	}
 
+	// 初始化显示分片
 #if WITH_CASE_PRESERVING_NAME
 	for (FNamePoolShardBase& Shard : DisplayShards)
 	{
@@ -890,11 +993,13 @@ FNamePool::FNamePool()
 #endif
 
 	// Register all hardcoded names
+	// 注册所有硬编码的名字
 #define REGISTER_NAME(num, name) ENameToEntry[num] = Store(FNameStringView(#name, FCStringAnsi::Strlen(#name)));
 #include "UObject/UnrealNames.inl"
 #undef REGISTER_NAME
 
 	// Make reverse mapping
+	// 创建保留的名字HashMap
 	LargestEnameUnstableId = 0;
 	for (uint32 ENameIndex = 0; ENameIndex < NAME_MaxHardcodedNameIndex; ++ENameIndex)
 	{
@@ -906,6 +1011,7 @@ FNamePool::FNamePool()
 	}
 
 	// Verify all ENames are unique
+	// 校验所有的ENames是否是唯一的
 	if (NumAnsiEntries() != EntryToEName.Num())
 	{
 		// we can't print out here because there may be no log yet if this happens before main starts
@@ -922,6 +1028,7 @@ FNamePool::FNamePool()
 	}
 }
 
+// 是不是都是Ansi编码
 static bool IsPureAnsi(const WIDECHAR* Str, const int32 Len)
 {
 	// Consider SSE version if this function takes significant amount of time
@@ -933,12 +1040,14 @@ static bool IsPureAnsi(const WIDECHAR* Str, const int32 Len)
 	return !(Result & 0xffffff80u);
 }
 
+// 直接从数组里面取
 FNameEntryId FNamePool::Find(EName Ename) const
 {
 	checkSlow(Ename < NAME_MaxHardcodedNameIndex);
 	return ENameToEntry[Ename];
 }
 
+// 找到名字对应的EntryId
 FNameEntryId FNamePool::Find(FNameStringView Name) const
 {
 #if WITH_CASE_PRESERVING_NAME
@@ -953,9 +1062,12 @@ FNameEntryId FNamePool::Find(FNameStringView Name) const
 	return ComparisonShards[ComparisonValue.Hash.ShardIndex].Find(ComparisonValue);
 }
 
+// 注册名字
 FNameEntryId FNamePool::Store(FNameStringView Name)
 {
-#if WITH_CASE_PRESERVING_NAME
+#if WITH_CASE_PRESERVING_NAME  
+	// 如果大小写敏感的话，先从显示Shard中查找，如果找到，就直接使用
+	// 如果Name和显示的名字一样，那其实Shards里面保存的就是ComparisonId
 	FNameDisplayValue DisplayValue(Name);
 	FNamePoolShard<ENameCase::CaseSensitive>& DisplayShard = DisplayShards[DisplayValue.Hash.ShardIndex];
 	if (FNameEntryId Existing = DisplayShard.Find(DisplayValue))
@@ -967,18 +1079,22 @@ FNameEntryId FNamePool::Store(FNameStringView Name)
 	bool bAdded = false;
 
 	// Insert comparison name first since display value must contain comparison name
+	// 首先插入比较名字因为显示值必须包含比较名字
 	FNameComparisonValue ComparisonValue(Name);
 	FNameEntryId ComparisonId = ComparisonShards[ComparisonValue.Hash.ShardIndex].Insert(ComparisonValue, bAdded);
 
 #if WITH_CASE_PRESERVING_NAME
 	// Check if ComparisonId can be used as DisplayId
+	// 检查是否ComparisonId可以用来作为DisplayId
 	if (bAdded || EqualsSameDimensions<ENameCase::CaseSensitive>(Resolve(ComparisonId), Name))
 	{
+		// 插入已经存在的
 		DisplayShard.InsertExistingEntry(DisplayValue.Hash, ComparisonId);
 		return ComparisonId;
 	}
 	else
 	{
+		// 加入已经存在的
 		DisplayValue.ComparisonId = ComparisonId;
 		return DisplayShard.Insert(DisplayValue, bAdded);
 	}
@@ -987,6 +1103,7 @@ FNameEntryId FNamePool::Store(FNameStringView Name)
 #endif
 }
 
+// 批量加锁
 void FNamePool::BatchLock()
 {
 	for (const FNamePoolShardBase& Shard : ComparisonShards)
@@ -1004,6 +1121,7 @@ FORCEINLINE FNameEntryId FNamePool::BatchStore(const FNameComparisonValue& Compa
 	return ComparisonShards[ComparisonValue.Hash.ShardIndex].Insert<FNullScopeLock>(ComparisonValue, bCreatedNewEntry);
 }
 
+// 批量解锁
 void FNamePool::BatchUnlock()
 {
 	Entries.BatchUnlock();
@@ -1014,15 +1132,18 @@ void FNamePool::BatchUnlock()
 	}
 }
 
+// 总共多少个Entries，
 uint32 FNamePool::NumEntries() const
 {
 	uint32 Out = 0;
+	// 遍历显示Shard（如果大小写敏感的话）
 #if WITH_CASE_PRESERVING_NAME
 	for (const FNamePoolShardBase& Shard : DisplayShards)
 	{
 		Out += Shard.NumCreated();
 	}
 #endif
+	// 遍历比较Shard
 	for (const FNamePoolShardBase& Shard : ComparisonShards)
 	{
 		Out += Shard.NumCreated();
@@ -1031,20 +1152,25 @@ uint32 FNamePool::NumEntries() const
 	return Out;
 }
 
+// 计算多少个Ansi的Entries
 uint32 FNamePool::NumAnsiEntries() const
 {
+	// 总的Entries减去Unicode的Entries
 	return NumEntries() - NumWideEntries();
 }
 
+// 计算多少个宽字符Entries
 uint32 FNamePool::NumWideEntries() const
 {
 	uint32 Out = 0;
+	// 遍历显示Shard（如果大小写敏感的话）,统计显示的Shard
 #if WITH_CASE_PRESERVING_NAME
 	for (const FNamePoolShardBase& Shard : DisplayShards)
 	{
 		Out += Shard.NumCreatedWide();
 	}
 #endif
+	// 遍历比较Shard，统计比较的Shard
 	for (const FNamePoolShardBase& Shard : ComparisonShards)
 	{
 		Out += Shard.NumCreatedWide();
@@ -1053,15 +1179,18 @@ uint32 FNamePool::NumWideEntries() const
 	return Out;
 }
 
+// 得到Slots的数目
 uint32 FNamePool::NumSlots() const
 {
 	uint32 SlotCapacity = 0;
+	// 显示Shard的Slot数目
 #if WITH_CASE_PRESERVING_NAME
 	for (const FNamePoolShardBase& Shard : DisplayShards)
 	{
 		SlotCapacity += Shard.Capacity();
 	}
 #endif
+	// 比较Shard的数目
 	for (const FNamePoolShardBase& Shard : ComparisonShards)
 	{
 		SlotCapacity += Shard.Capacity();
@@ -1083,31 +1212,39 @@ TArray<const FNameEntry*> FNamePool::DebugDump() const
 	return Out;
 }
 
+// Handle是否合法
 bool FNamePool::IsValid(FNameEntryHandle Handle) const
 {
 	return Handle.Block < Entries.NumBlocks();
 }
 
+// 查找Id对应的EName
 const EName* FNamePool::FindEName(FNameEntryId Id) const
 {
 	return Id.ToUnstableInt() > LargestEnameUnstableId ? nullptr : EntryToEName.Find(Id);
 }
 
+// 保留多少字节，每个分片保留多少个Entries
 void FNamePool::Reserve(uint32 NumBytes, uint32 InNumEntries)
 {
+	// 计算出多少个Block
 	uint32 NumBlocks = NumBytes / FNameEntryAllocator::BlockSizeBytes + 1;
+	// 分配器保留多少个Block
 	Entries.ReserveBlocks(NumBlocks);
-
+	// 如果所有的Entries比要求的少
 	if (NumEntries() < InNumEntries)
 	{
+		// 将要求的Entries数目平均分配在分片上
 		uint32 NumEntriesPerShard = InNumEntries / FNamePoolShards + 1;
 
 	#if WITH_CASE_PRESERVING_NAME
+		// 每个显示分片保留多少个
 		for (FNamePoolShard<ENameCase::CaseSensitive>& Shard : DisplayShards)
 		{
 			Shard.Reserve(NumEntriesPerShard);
 		}
 	#endif
+		// 每个比较分片保留多少个
 		for (FNamePoolShard<ENameCase::IgnoreCase>& Shard : ComparisonShards)
 		{
 			Shard.Reserve(NumEntriesPerShard);
@@ -1121,6 +1258,7 @@ alignas(FNamePool) static uint8 NamePoolData[sizeof(FNamePool)];
 // Only call this once per public FName function called
 //
 // Not using magic statics to run as little code as possible
+// 得到名字库，如果没有初始化就初始化
 static FNamePool& GetNamePool()
 {
 	if (bNamePoolInitialized)
@@ -1134,12 +1272,15 @@ static FNamePool& GetNamePool()
 }
 
 // Only call from functions guaranteed to run after FName lazy initialization
+// 仅从保证在FName延迟初始化之后运行的函数调用
 static FNamePool& GetNamePoolPostInit()
 {
+	// 确定名字池已经初始化
 	checkSlow(bNamePoolInitialized);
 	return (FNamePool&)NamePoolData;
 }
 
+// 比较名字入口的名字值和名字是否一致
 bool operator==(FNameEntryId Id, EName Ename)
 {
 	return Id == GetNamePoolPostInit().Find(Ename);
@@ -1184,6 +1325,7 @@ static int32 CompareDifferentIdsAlphabetically(FNameEntryId AId, FNameEntryId BI
 	return AView.Len - BView.Len;
 }
 
+// 按字母顺序比较
 int32 FNameEntryId::CompareLexical(FNameEntryId Rhs) const
 {
 	return Value != Rhs.Value && CompareDifferentIdsAlphabetically(*this, Rhs);
@@ -1242,6 +1384,7 @@ const TCHAR* DebugFName(FName& Name)
 	return TempName;
 }
 
+// 得到最原始CRC32的Hash值
 template <typename TCharType>
 static uint16 GetRawCasePreservingHash(const TCharType* Source)
 {
@@ -1257,31 +1400,35 @@ static uint16 GetRawNonCasePreservingHash(const TCharType* Source)
 /*-----------------------------------------------------------------------------
 	FNameEntry
 -----------------------------------------------------------------------------*/
-
+// 保存指定长度的字符，不一定有终止符的名字
 void FNameEntry::StoreName(const ANSICHAR* InName, uint32 Len)
 {
 	FPlatformMemory::Memcpy(AnsiName, InName, sizeof(ANSICHAR) * Len);
 	Encode(AnsiName, Len);
 }
 
+// 保存指定长度的字符，不一定有终止符的名字
 void FNameEntry::StoreName(const WIDECHAR* InName, uint32 Len)
 {
 	FPlatformMemory::Memcpy(WideName, InName, sizeof(WIDECHAR) * Len);
 	Encode(WideName, Len);
 }
 
+// 拷贝指定长度的，不一定有终止符的名字
 void FNameEntry::CopyUnterminatedName(ANSICHAR* Out) const
 {
 	FPlatformMemory::Memcpy(Out, AnsiName, sizeof(ANSICHAR) * Header.Len);
 	Decode(Out, Header.Len);
 }
 
+// 拷贝指定长度的，不一定有终止符的名字
 void FNameEntry::CopyUnterminatedName(WIDECHAR* Out) const
 {
 	FPlatformMemory::Memcpy(Out, WideName, sizeof(WIDECHAR) * Header.Len);
 	Decode(Out, Header.Len);
 }
 
+// 得到没有终止符的名字，如果有自定义的解码，需要调用解码，不然就直接返回
 FORCEINLINE const WIDECHAR* FNameEntry::GetUnterminatedName(WIDECHAR(&OptionalDecodeBuffer)[NAME_SIZE]) const
 {
 #ifdef WITH_CUSTOM_NAME_ENCODING
@@ -1292,6 +1439,7 @@ FORCEINLINE const WIDECHAR* FNameEntry::GetUnterminatedName(WIDECHAR(&OptionalDe
 #endif
 }
 
+// // 得到没有终止符的名字，如果有自定义的解码，需要调用解码，不然就直接返回
 FORCEINLINE ANSICHAR const* FNameEntry::GetUnterminatedName(ANSICHAR(&OptionalDecodeBuffer)[NAME_SIZE]) const
 {
 #ifdef WITH_CUSTOM_NAME_ENCODING
@@ -1302,35 +1450,43 @@ FORCEINLINE ANSICHAR const* FNameEntry::GetUnterminatedName(ANSICHAR(&OptionalDe
 #endif
 }
 
+// 通过NameBuffer创建String View
 FORCEINLINE FNameStringView FNameEntry::MakeView(FNameBuffer& OptionalDecodeBuffer) const
 {
 	return IsWide()	? FNameStringView(GetUnterminatedName(OptionalDecodeBuffer.WideName), GetNameLength())
 					: FNameStringView(GetUnterminatedName(OptionalDecodeBuffer.AnsiName), GetNameLength());
 }
 
+// 将不带终止符的名称复制到无需分配的TCHAR缓冲区
 void FNameEntry::GetUnterminatedName(TCHAR* OutName, uint32 OutLen) const
 {
 	check(static_cast<int32>(OutLen) >= GetNameLength());
 	CopyAndConvertUnterminatedName(OutName);
 }
 
+// 拷贝以0为结尾的名称到无需分配的TCHAR缓冲区
 void FNameEntry::GetName(TCHAR(&OutName)[NAME_SIZE]) const
 {
 	CopyAndConvertUnterminatedName(OutName);
 	OutName[GetNameLength()] = '\0';
 }
 
+// 拷贝并且转换名字
 void FNameEntry::CopyAndConvertUnterminatedName(TCHAR* OutName) const
 {
 	if (sizeof(TCHAR) < sizeof(WIDECHAR) && IsWide()) // Normally compiled out
 	{
+		// 先拷贝到一个临时缓冲区
 		FNameBuffer Temp;
 		CopyUnterminatedName(Temp.WideName);
+		// 转换
 		ConvertInPlace<WIDECHAR, TCHAR>(Temp.WideName, Header.Len);
+		// 再拷贝到输出参数中
 		FPlatformMemory::Memcpy(OutName, Temp.AnsiName, Header.Len * sizeof(TCHAR));
 	}
 	else if (IsWide())
 	{
+		// 拷贝
 		CopyUnterminatedName((WIDECHAR*)OutName);
 		ConvertInPlace<WIDECHAR, TCHAR>((WIDECHAR*)OutName, Header.Len);
 	}
@@ -1341,35 +1497,44 @@ void FNameEntry::CopyAndConvertUnterminatedName(TCHAR* OutName) const
 	}
 }
 
+// 拷贝null结尾的名字到无需分配的ANSICHAR缓冲区，入口必须不是宽字符
 void FNameEntry::GetAnsiName(ANSICHAR(&Out)[NAME_SIZE]) const
 {
 	check(!IsWide());
 	CopyUnterminatedName(Out);
+	// 注意加终止符
 	Out[Header.Len] = '\0';
 }
 
+// 拷贝null结尾的名字到无需分配的WIDECHAR缓冲区，入口必须是宽字符
 void FNameEntry::GetWideName(WIDECHAR(&Out)[NAME_SIZE]) const
 {
 	check(IsWide());
 	CopyUnterminatedName(Out);
+	// 注意加终止符
 	Out[Header.Len] = '\0';
 }
 
 /** @return null-terminated string */
+// 返回null终止的字符串
 static const TCHAR* EntryToCString(const FNameEntry& Entry, FNameBuffer& Temp)
 {
+	// 宽字符
 	if (Entry.IsWide())
 	{
 		Entry.GetWideName(Temp.WideName);
+		// 宽字符转换成TCHAR
 		return ConvertInPlace<WIDECHAR, TCHAR>(Temp.WideName, Entry.GetNameLength() + 1);
 	}
 	else
 	{
+		// ANSI转换成TCHAR
 		Entry.GetAnsiName(Temp.AnsiName);
 		return ConvertInPlace<ANSICHAR, TCHAR>(Temp.AnsiName, Entry.GetNameLength() + 1);
 	}
 }
 
+// 以字符串的方式返回名字
 FString FNameEntry::GetPlainNameString() const
 {
 	FNameBuffer Temp;
@@ -1383,12 +1548,13 @@ FString FNameEntry::GetPlainNameString() const
 	}
 }
 
+// 将名字附加到字符串的尾部 
 void FNameEntry::AppendNameToString(FString& Out) const
 {
 	FNameBuffer Temp;
 	Out.Append(EntryToCString(*this, Temp), Header.Len);
 }
-
+// 将名字附加到字符串的尾部 
 void FNameEntry::AppendNameToString(FStringBuilderBase& Out) const
 {
 	const int32 Offset = Out.AddUninitialized(Header.Len);
@@ -1405,6 +1571,7 @@ void FNameEntry::AppendNameToString(FStringBuilderBase& Out) const
 	}
 }
 
+// 将名字附加到字符串的尾部,入口不能说宽字符
 void FNameEntry::AppendAnsiNameToString(FAnsiStringBuilderBase& Out) const
 {
 	check(!IsWide());
@@ -1412,30 +1579,35 @@ void FNameEntry::AppendAnsiNameToString(FAnsiStringBuilderBase& Out) const
 	CopyUnterminatedName(Out.GetData() + Offset);
 }
 
+// 使用路径分隔符附加名字到字符串，使用FString::PathAppend()
 void FNameEntry::AppendNameToPathString(FString& Out) const
 {
 	FNameBuffer Temp;
 	Out.PathAppend(EntryToCString(*this, Temp), Header.Len);
 }
 
+// 返回以字节为单位的大小，这个不等于sizeof(FNameEntry)，我们只计算实际占用的字节，而不是整个结构体的字节数
 int32 FNameEntry::GetSize(const TCHAR* Name)
 {
 	return FNameEntry::GetSize(FCString::Strlen(Name), FCString::IsPureAnsi(Name));
 }
 
+// 返回以字节为单位的大小，这个不等于sizeof(FNameEntry)，我们只计算实际占用的字节，而不是整个结构体的字节数
 int32 FNameEntry::GetSize(int32 Length, bool bIsPureAnsi)
 {
 	int32 Bytes = GetDataOffset() + Length * (bIsPureAnsi ? sizeof(ANSICHAR) : sizeof(WIDECHAR));
 	return Align(Bytes, alignof(FNameEntry));
 }
-
+// 返回以字节为单位的大小
 int32 FNameEntry::GetSizeInBytes() const
 {
 	return GetSize(GetNameLength(), !IsWide());
 }
 
+// 从一个FNameEntry来构造FNameEntrySerialized
 FNameEntrySerialized::FNameEntrySerialized(const FNameEntry& NameEntry)
 {
+	// 从一个FNameEntry来构造FNameEntrySerialized
 	bIsWide = NameEntry.IsWide();
 	if (bIsWide)
 	{
@@ -1454,6 +1626,7 @@ FNameEntrySerialized::FNameEntrySerialized(const FNameEntry& NameEntry)
 /**
  * @return FString of name portion minus number.
  */
+// 返回不包括编号部分的名字的FString
 FString FNameEntrySerialized::GetPlainNameString() const
 {
 	if (bIsWide)
@@ -1469,22 +1642,25 @@ FString FNameEntrySerialized::GetPlainNameString() const
 /*-----------------------------------------------------------------------------
 	FName statics.
 -----------------------------------------------------------------------------*/
-
+// 所有名字入口的内存大小
 int32 FName::GetNameEntryMemorySize()
 {
 	return GetNamePool().NumBlocks() * FNameEntryAllocator::BlockSizeBytes;
 }
 
+// 名称表对象整体的内存大小：名字入口的内存+名字池本身的内存+名字池Slot的内存
 int32 FName::GetNameTableMemorySize()
 {
 	return GetNameEntryMemorySize() + sizeof(FNamePool) + GetNamePool().NumSlots() * sizeof(FNameSlot);
 }
 
+// 名称表中ansi名称的数目
 int32 FName::GetNumAnsiNames()
 {
 	return GetNamePool().NumAnsiEntries();
 }
 
+// 名称表中宽字符名称的数目
 int32 FName::GetNumWideNames()
 {
 	return GetNamePool().NumWideEntries();
@@ -1495,12 +1671,14 @@ TArray<const FNameEntry*> FName::DebugDump()
 	return GetNamePool().DebugDump();
 }
 
+// 得到EName中的名字入口
 FNameEntry const* FName::GetEntry(EName Ename)
 {
 	FNamePool& Pool = GetNamePool();
 	return &Pool.Resolve(Pool.Find(Ename));
 }
 
+// 得到Id对应的Entry
 FNameEntry const* FName::GetEntry(FNameEntryId Id)
 {
 	return &GetNamePool().Resolve(Id);
@@ -1635,11 +1813,13 @@ FString FName::NameToDisplayString( const FString& InDisplayName, const bool bIs
 	return OutDisplayName;
 }
 
+// 获取此FName表示的EName或nullptr
 const EName* FName::ToEName() const
 {
 	return GetNamePoolPostInit().FindEName(ComparisonIndex);
 }
 
+//  FNameEntryId是否合法
 bool FName::IsWithinBounds(FNameEntryId Id)
 {
 	return GetNamePoolPostInit().IsValid(Id);
@@ -3271,11 +3451,13 @@ uint8** FNameDebugVisualizer::GetBlocks()
 	return ((FNamePool*)(NamePoolData))->GetBlocksForDebugVisualizer();
 }
 
+// 将FScriptName转换为String，先将FScriptName转换成FName，然后FName转换为FString
 FString FScriptName::ToString() const
 {
 	return ScriptNameToName(*this).ToString();
 }
 
+// 将FName序列化到Writer中
 void Freeze::IntrinsicWriteMemoryImage(FMemoryImageWriter& Writer, const FName& Object, const FTypeLayoutDesc&)
 {
 	Writer.WriteFName(Object);
@@ -3287,11 +3469,13 @@ uint32 Freeze::IntrinsicAppendHash(const FName* DummyObject, const FTypeLayoutDe
 	return Freeze::AppendHashForNameAndSize(TypeDesc.Name, SizeFromFields, Hasher);
 }
 
+// 将FName序列化到Writer中
 void Freeze::IntrinsicWriteMemoryImage(FMemoryImageWriter& Writer, const FMinimalName& Object, const FTypeLayoutDesc&)
 {
 	Writer.WriteFMinimalName(Object);
 }
 
+// 将FName序列化到Writer中
 void Freeze::IntrinsicWriteMemoryImage(FMemoryImageWriter& Writer, const FScriptName& Object, const FTypeLayoutDesc&)
 {
 	Writer.WriteFScriptName(Object);

@@ -346,7 +346,7 @@ struct FBehaviorTreeInstance
 	TArray<uint8> InstanceMemory;
 
 	/** index of identifier (BehaviorTreeComponent.KnownInstances) */
-	// 识符索引
+	// 标识符索引
 	uint8 InstanceIdIndex;
 
 	/** active node type */
@@ -443,6 +443,7 @@ struct FBehaviorTreeInstance
 protected:
 
 	/** worker for updating all nodes */
+	// 清除所有的节点
 	void CleanupNodes(UBehaviorTreeComponent& OwnerComp, UBTCompositeNode& Node, EBTMemoryClear::Type CleanupType);
 
 private:
@@ -638,7 +639,7 @@ struct FBehaviorTreeSearchData
 	FBehaviorTreeSearchData() = delete;
 
 private:
-
+	// 搜索ID生成器
 	static int32 NextSearchId;
 };
 

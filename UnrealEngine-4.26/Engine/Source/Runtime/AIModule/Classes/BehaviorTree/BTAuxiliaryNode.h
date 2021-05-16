@@ -79,6 +79,7 @@ protected:
 	uint8 bTickIntervals : 1;
 
 	/** child index in parent node */
+	// 父节点中的子节点索引
 	uint8 ChildIndex;
 
 	/** called when auxiliary node becomes active

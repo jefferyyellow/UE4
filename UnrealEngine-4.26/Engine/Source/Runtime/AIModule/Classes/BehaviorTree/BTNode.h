@@ -37,7 +37,7 @@ UCLASS(Abstract,config=Game)
 class AIMODULE_API UBTNode : public UObject, public IGameplayTaskOwnerInterface
 {
 	GENERATED_UCLASS_BODY()
-
+	// 
 	virtual UWorld* GetWorld() const override;
 
 	/** fill in data about tree structure */
@@ -73,7 +73,7 @@ class AIMODULE_API UBTNode : public UObject, public IGameplayTaskOwnerInterface
 	virtual void OnInstanceDestroyed(UBehaviorTreeComponent& OwnerComp);
 
 	/** called on creating subtree to set up memory and instancing */
-	// 调用创建子树来设置内存和实例化
+	// 创建子树设置内存和实例化时调用
 	void InitializeInSubtree(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory, int32& NextInstancedIndex, EBTMemoryInit::Type InitType) const;
 
 	/** called on removing subtree to cleanup memory */

@@ -36,16 +36,20 @@ UWorld* UBTNode::GetWorld() const
 	}
 
 	// Special case for behavior tree nodes in the editor
+	// 编辑器中行为树节点的特殊情况
 	if (Cast<UPackage>(GetOuter()) != nullptr)
 	{
 		// GetOuter should return a UPackage and its Outer is a UWorld
+		// GetOuter应该返回一个UPackage并且它的Outer就是UWorld
 		return Cast<UWorld>(GetOuter()->GetOuter());
 	}
 
 	// In all other cases...
+	// 其他的情况
 	return GetOuter()->GetWorld();
 }
 
+// 填写有关树形结构的数据
 void UBTNode::InitializeNode(UBTCompositeNode* InParentNode, uint16 InExecutionIndex, uint16 InMemoryOffset, uint8 InTreeDepth)
 {
 	ParentNode = InParentNode;
@@ -74,7 +78,7 @@ void UBTNode::OnInstanceDestroyed(UBehaviorTreeComponent& OwnerComp)
 	// empty in base class
 }
 
-// 调用创建子树来设置内存和实例化
+// 创建子树设置内存和实例化时调用
 void UBTNode::InitializeInSubtree(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory, int32& NextInstancedIndex, EBTMemoryInit::Type InitType) const
 {
 	// 从节点内存，获得对应的索引，然后初始化
@@ -125,8 +129,10 @@ void UBTNode::InitializeInSubtree(UBehaviorTreeComponent& OwnerComp, uint8* Node
 	}
 }
 
+// 调用删除子树来清除内存
 void UBTNode::CleanupInSubtree(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory, EBTMemoryClear::Type CleanupType) const
 {
+	// 如果是否需要实例化节点
 	const UBTNode* NodeOb = bCreateNodeInstance ? GetNodeInstance(OwnerComp, NodeMemory) : this;
 	if (NodeOb)
 	{
@@ -147,6 +153,7 @@ void UBTNode::InitializeFromAsset(UBehaviorTree& Asset)
 	TreeAsset = &Asset;
 }
 
+// 得到黑板资源
 UBlackboardData* UBTNode::GetBlackboardAsset() const
 {
 	return TreeAsset ? TreeAsset->BlackboardAsset : NULL;
@@ -165,32 +172,40 @@ uint16 UBTNode::GetSpecialMemorySize() const
 // 得到节点实例
 UBTNode* UBTNode::GetNodeInstance(const UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory) const
 {
+	// 先得到索引
 	FBTInstancedNodeMemory* MyMemory = GetSpecialNodeMemory<FBTInstancedNodeMemory>(NodeMemory);
+	// 通过索引得到对应的实例
 	return MyMemory && OwnerComp.NodeInstances.IsValidIndex(MyMemory->NodeIdx) ?
 		OwnerComp.NodeInstances[MyMemory->NodeIdx] : NULL;
 }
 
+// 得到节点实例
 UBTNode* UBTNode::GetNodeInstance(FBehaviorTreeSearchData& SearchData) const
 {
 	return GetNodeInstance(SearchData.OwnerComp, GetNodeMemory<uint8>(SearchData));
 }
 
+// 得到节点名字
 FString UBTNode::GetNodeName() const
 {
 	return NodeName.Len() ? NodeName : UBehaviorTreeTypes::GetShortTypeName(this);
 }
 
+// 得到运行时描述
 FString UBTNode::GetRuntimeDescription(const UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory, EBTDescriptionVerbosity::Type Verbosity) const
 {
+	// 基本描述
 	FString Description = NodeName.Len() ? FString::Printf(TEXT("%d. %s [%s]"), ExecutionIndex, *NodeName, *GetStaticDescription()) : GetStaticDescription();
 	TArray<FString> RuntimeValues;
 
+	// 运行时参数
 	const UBTNode* NodeOb = bCreateNodeInstance ? GetNodeInstance(OwnerComp, NodeMemory) : this;
 	if (NodeOb)
 	{
 		NodeOb->DescribeRuntimeValues(OwnerComp, NodeMemory, Verbosity, RuntimeValues);
 	}
 
+	// 运行时值
 	for (int32 ValueIndex = 0; ValueIndex < RuntimeValues.Num(); ValueIndex++)
 	{
 		Description += TEXT(", ");
@@ -200,12 +215,14 @@ FString UBTNode::GetRuntimeDescription(const UBehaviorTreeComponent& OwnerComp, 
 	return Description;
 }
 
+// 包含此节点的描述以及所有设置值的字符串
 FString UBTNode::GetStaticDescription() const
 {
 	// short type name
 	return UBehaviorTreeTypes::GetShortTypeName(this);
 }
 
+// 收集所有运行时参数的描述
 void UBTNode::DescribeRuntimeValues(const UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory, EBTDescriptionVerbosity::Type Verbosity, TArray<FString>& Values) const
 {
 	// nothing stored in memory for base class
@@ -231,6 +248,7 @@ UGameplayTasksComponent* UBTNode::GetGameplayTasksComponent(const UGameplayTask&
 	return (AITask && AITask->GetAIController()) ? AITask->GetAIController()->GetGameplayTasksComponent(Task) : Task.GetGameplayTasksComponent();
 }
 
+//  得到Task的Avatar的Owner
 AActor* UBTNode::GetGameplayTaskOwner(const UGameplayTask* Task) const
 {
 	if (Task == nullptr)
@@ -259,6 +277,7 @@ AActor* UBTNode::GetGameplayTaskOwner(const UGameplayTask* Task) const
 	return TasksComponent ? TasksComponent->GetGameplayTaskOwner(Task) : nullptr;
 }
 
+// 得到Task的Avatar的Owner
 AActor* UBTNode::GetGameplayTaskAvatar(const UGameplayTask* Task) const
 {
 	if (Task == nullptr)
@@ -277,6 +296,7 @@ AActor* UBTNode::GetGameplayTaskAvatar(const UGameplayTask* Task) const
 		}
 	}
 
+	// 通过AITask,得到Controller，然后得到对应的Pawn
 	const UAITask* AITask = Cast<const UAITask>(Task);
 	if (AITask)
 	{
