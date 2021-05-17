@@ -35,10 +35,12 @@ UBehaviorTreeManager::UBehaviorTreeManager(const FObjectInitializer& ObjectIniti
 	MaxDebuggerSteps = 100;
 }
 
+// 清理函数
 void UBehaviorTreeManager::FinishDestroy()
 {
 	SET_DWORD_STAT(STAT_AI_BehaviorTree_NumTemplates, 0);
 
+	// 将没有销毁的组件都调用Clearup函数
 	for (int32 Idx = 0; Idx < ActiveComponents.Num(); Idx++)
 	{
 		if (ActiveComponents[Idx] && !ActiveComponents[Idx]->HasAnyFlags(RF_BeginDestroyed))
@@ -47,10 +49,12 @@ void UBehaviorTreeManager::FinishDestroy()
 		}
 	}
 
+	// 组件列表重置
 	ActiveComponents.Reset();
 	Super::FinishDestroy();
 }
 
+// 得到对齐的内存大小，圆整到4的倍数
 int32 UBehaviorTreeManager::GetAlignedDataSize(int32 Size)
 {
 	// round to 4 bytes
@@ -74,6 +78,7 @@ struct FNodeInitializationData
 		SpecialDataSize = UBehaviorTreeManager::GetAlignedDataSize(SpecialNodeMemory);
 
 		const uint16 NodeMemorySize = NodeMemory + SpecialDataSize;
+		// 计算数据的大小
 		DataSize = (NodeMemorySize <= 2) ? NodeMemorySize : UBehaviorTreeManager::GetAlignedDataSize(NodeMemorySize);
 	}
 
@@ -278,6 +283,7 @@ static void InitializeNodeHelper(UBTCompositeNode* ParentNode, UBTNode* NodeOb,
 	}
 }
 
+// 通过给定的蓝图，得到行为树模板
 bool UBehaviorTreeManager::LoadTree(UBehaviorTree& Asset, UBTCompositeNode*& Root, uint16& InstanceMemorySize)
 {
 	SCOPE_CYCLE_COUNTER(STAT_AI_BehaviorTree_LoadTime);
@@ -497,6 +503,7 @@ void UBehaviorTreeManager::DumpUsageStats() const
 	AllNodesCounter.Print(TEXT(","));
 }
 
+// 注册新的行为树组件以进行跟踪 
 void UBehaviorTreeManager::AddActiveComponent(UBehaviorTreeComponent& Component)
 {
 	ActiveComponents.AddUnique(&Component);

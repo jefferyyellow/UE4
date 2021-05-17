@@ -26,38 +26,49 @@ struct FScopedBehaviorTreeLock;
 struct FBTNodeExecutionInfo
 {
 	/** index of first task allowed to be executed */
+	// 允许执行的第一个任务的索引
 	FBTNodeIndex SearchStart;
 
 	/** index of last task allowed to be executed */
+	// 允许执行的最后一个任务的索引
 	FBTNodeIndex SearchEnd;
 
 	/** node to be executed */
+	// 执行的节点
 	UBTCompositeNode* ExecuteNode;
 
 	/** subtree index */
+	// 子树的索引
 	uint16 ExecuteInstanceIdx;
 
 	/** result used for resuming execution */
+	// 用于恢复执行的结果 
 	TEnumAsByte<EBTNodeResult::Type> ContinueWithResult;
 
 	/** if set, tree will try to execute next child of composite instead of forcing branch containing SearchStart */
+	// 如果设置，则tree将尝试执行Composite的下一个子级，而不是强制包含SearchStart的分支
 	uint8 bTryNextChild : 1;
 
 	/** if set, request was not instigated by finishing task/initialization but is a restart (e.g. decorator) */
+	// 如果已设置，则请求不会通过完成任务/初始化来激发，而是重新启动（例如，装饰器） 
 	uint8 bIsRestart : 1;
 
 	FBTNodeExecutionInfo() : ExecuteNode(NULL), bTryNextChild(false), bIsRestart(false) { }
 };
 
+// 代办的执行信息
 struct FBTPendingExecutionInfo
 {
 	/** next task to execute */
+	// 执行的下一个任务
 	UBTTaskNode* NextTask;
 
 	/** if set, tree ran out of nodes */
+	// 如果设置，则树用完了节点
 	uint32 bOutOfNodes : 1;
 
 	/** if set, request can't be executed */
+	// 如果设置，请求不被执行
 	uint32 bLocked : 1;
 
 	FBTPendingExecutionInfo() : NextTask(NULL), bOutOfNodes(false), bLocked(false) {}
@@ -71,13 +82,17 @@ struct FBTPendingExecutionInfo
 struct FBTPendingAuxNodesUnregisterInfo
 {
 	/** list of node index ranges pending aux nodes unregistration */
+	// 未注册辅助节点的节点索引范围列表
 	TArray<FBTNodeIndexRange> Ranges;
 };
 
 struct FBTTreeStartInfo
 {
+	// 行为树
 	UBehaviorTree* Asset;
+	// 执行模式
 	EBTExecutionMode::Type ExecuteMode;
+	// 是否待初始化
 	uint8 bPendingInitialize : 1;
 
 	FBTTreeStartInfo() : Asset(nullptr), ExecuteMode(EBTExecutionMode::Looped), bPendingInitialize(0) {}
@@ -91,10 +106,13 @@ class AIMODULE_API UBehaviorTreeComponent : public UBrainComponent
 	GENERATED_UCLASS_BODY()
 
 	// UActorComponent overrides
+	// 注册所有的tick函数
 	virtual void RegisterComponentTickFunctions(bool bRegister) override;
+	// 设置组件的tick可用
 	virtual void SetComponentTickEnabled(bool bEnabled) override;
 
 	// Begin UBrainComponent overrides
+	// UBrainComponent组件的虚拟接口的overrides
 	virtual void StartLogic() override;
 	virtual void RestartLogic() override;
 	virtual void StopLogic(const FString& Reason) override;
@@ -102,10 +120,12 @@ class AIMODULE_API UBehaviorTreeComponent : public UBrainComponent
 	virtual EAILogicResuming::Type ResumeLogic(const FString& Reason) override;
 
 	/** indicates instance has been initialized to work with specific BT asset */
+	// 表示实例已被初始化以使用特定的BT资产
 	bool TreeHasBeenStarted() const;
 
 public:
 	/** DO NOT USE. This constructor is for internal usage only for hot-reload purposes. */
+	// 禁止使用。该构造函数只是用于热加载目的的内部使用
 	UBehaviorTreeComponent(FVTableHelper& Helper);
 
 	virtual bool IsRunning() const override;
@@ -119,29 +139,37 @@ public:
 	// End UActorComponent overrides
 
 	/** starts execution from root */
+	// 从根开始执行
 	void StartTree(UBehaviorTree& Asset, EBTExecutionMode::Type ExecuteMode = EBTExecutionMode::Looped);
 
 	/** stops execution */
+	// 结束执行
 	void StopTree(EBTStopMode::Type StopMode = EBTStopMode::Safe);
 
 	/** restarts execution from root */
+	// 从根重新开始执行
 	void RestartTree();
 
 	/** request execution change */
+	// 要求执行变更
 	void RequestExecution(UBTCompositeNode* RequestedOn, int32 InstanceIdx, 
 		const UBTNode* RequestedBy, int32 RequestedByChildIndex,
 		EBTNodeResult::Type ContinueWithResult, bool bStoreForDebugger = true);
 
 	/** request execution change: helpers for decorator nodes */
+	// 要求执行变更：装饰节点
 	void RequestExecution(const UBTDecorator* RequestedBy);
 
 	/** request execution change: helpers for task nodes */
+	// 要求执行变更：任务节点
 	void RequestExecution(EBTNodeResult::Type ContinueWithResult);
 
 	/** request unregistration of aux nodes in the specified branch */
+	// 请求在指定分支中注销aux节点
 	void RequestUnregisterAuxNodesInBranch(const UBTCompositeNode* Node);
 
 	/** finish latent execution or abort */
+	// 完成潜在的执行或中止 
 	void OnTaskFinished(const UBTTaskNode* TaskNode, EBTNodeResult::Type TaskResult);
 
 	/** setup message observer for given task */
@@ -191,15 +219,18 @@ public:
 	UBehaviorTree* GetCurrentTree() const;
 
 	/** @return tree from top of instance stack */
+	// 实例堆栈顶部的树
 	UBehaviorTree* GetRootTree() const;
 
 	/** @return active node */
+	// 返回激活的节点
 	const UBTNode* GetActiveNode() const;
 	
 	/** get index of active instance on stack */
 	uint16 GetActiveInstanceIdx() const;
 
 	/** @return node memory */
+	// 返回节点内存
 	uint8* GetNodeMemory(UBTNode* Node, int32 InstanceIdx) const;
 
 	/** @return true if ExecutionRequest is switching to higher priority node */
@@ -253,9 +284,11 @@ public:
 
 protected:
 	/** stack of behavior tree instances */
+	// 行为树实例堆栈
 	TArray<FBehaviorTreeInstance> InstanceStack;
 
 	/** list of known subtree instances */
+	// 已知子树实例的列表
 	TArray<FBehaviorTreeInstanceId> KnownInstances;
 
 	/** instanced nodes */
@@ -306,6 +339,7 @@ protected:
 #endif
 
 	/** index of last active instance on stack */
+	// 堆栈上最后一个激活实例的索引
 	uint16 ActiveInstanceIdx;
 
 	/** if set, StopTree calls will be deferred */
@@ -334,9 +368,12 @@ protected:
 
 	/** push behavior tree instance on execution stack
 	 *	@NOTE: should never be called out-side of BT execution, meaning only BT tasks can push another BT instance! */
+	// 在执行堆栈上推送行为树实例
+	// 永远不要在BT执行之外被调用，这意味着只有BT任务才能推送另一个BT实例！
 	bool PushInstance(UBehaviorTree& TreeAsset);
 
 	/** add unique Id of newly created subtree to KnownInstances list and return its index */
+	// 将新创建的子树的唯一ID添加到KnownInstances列表中并返回其索引 
 	uint8 UpdateInstanceId(UBehaviorTree* TreeAsset, const UBTNode* OriginNode, int32 OriginInstanceIdx);
 
 	/** remove instanced nodes, known subtree instances and safely clears their persistent memory */
@@ -379,6 +416,7 @@ protected:
 	void ProcessPendingExecution();
 
 	/** apply pending tree initialization */
+	// 应用代办的树初始化 
 	void ProcessPendingInitialize();
 
 	/**
@@ -456,11 +494,13 @@ FORCEINLINE UBehaviorTree* UBehaviorTreeComponent::GetCurrentTree() const
 	return InstanceStack.Num() ? KnownInstances[InstanceStack[ActiveInstanceIdx].InstanceIdIndex].TreeAsset : NULL;
 }
 
+// 实例堆栈顶部的树
 FORCEINLINE UBehaviorTree* UBehaviorTreeComponent::GetRootTree() const
 {
 	return InstanceStack.Num() ? KnownInstances[InstanceStack[0].InstanceIdIndex].TreeAsset : NULL;
 }
 
+// 返回激活的节点
 FORCEINLINE const UBTNode* UBehaviorTreeComponent::GetActiveNode() const
 {
 	return InstanceStack.Num() ? InstanceStack[ActiveInstanceIdx].ActiveNode : NULL;

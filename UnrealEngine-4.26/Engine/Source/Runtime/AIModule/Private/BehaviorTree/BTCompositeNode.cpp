@@ -76,6 +76,7 @@ int32 UBTCompositeNode::GetChildIndex(FBehaviorTreeSearchData& SearchData, const
 	return GetChildIndex(ChildNode);
 }
 
+// 得到子节点的得索引
 int32 UBTCompositeNode::GetChildIndex(const UBTNode& ChildNode) const
 {
 	for (int32 ChildIndex = 0; ChildIndex < Children.Num(); ChildIndex++)

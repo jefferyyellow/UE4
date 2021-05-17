@@ -418,13 +418,14 @@ bool FBTNodeIndex::TakesPriorityOver(const FBTNodeIndex& Other) const
 //----------------------------------------------------------------------//
 
 int32 FBehaviorTreeSearchData::NextSearchId = 1;
-
+// 将更新信息添加到PendingUpdates数组，删除此节点的所有以前的更新 
 void FBehaviorTreeSearchData::AddUniqueUpdate(const FBehaviorTreeSearchUpdate& UpdateInfo)
 {
 	UE_VLOG(OwnerComp.GetOwner(), LogBehaviorTree, Verbose, TEXT("Search node update[%s]: %s"),
 		*UBehaviorTreeTypes::DescribeNodeUpdateMode(UpdateInfo.Mode),
 		*UBehaviorTreeTypes::DescribeNodeHelper(UpdateInfo.AuxNode ? (UBTNode*)UpdateInfo.AuxNode : (UBTNode*)UpdateInfo.TaskNode));
 
+	// 将原来的删除
 	bool bSkipAdding = false;
 	for (int32 UpdateIndex = 0; UpdateIndex < PendingUpdates.Num(); UpdateIndex++)
 	{
@@ -432,8 +433,10 @@ void FBehaviorTreeSearchData::AddUniqueUpdate(const FBehaviorTreeSearchUpdate& U
 		if (Info.AuxNode == UpdateInfo.AuxNode && Info.TaskNode == UpdateInfo.TaskNode)
 		{
 			// duplicate, skip
+			// 重复，就不用管了吧
 			if (Info.Mode == UpdateInfo.Mode)
 			{
+				// 跳过后面的增加
 				bSkipAdding = true;
 				break;
 			}
@@ -447,15 +450,20 @@ void FBehaviorTreeSearchData::AddUniqueUpdate(const FBehaviorTreeSearchUpdate& U
 	
 	// don't add Remove updates for inactive aux nodes, as they will block valid Add update coming later from the same search
 	// check only aux nodes, it happens due to UBTCompositeNode::NotifyDecoratorsOnActivation
+	// 不要为非活动aux节点添加Remove更新，因为它们将阻止来自同一搜索的有效Add更新，以后仅检查aux节点，
+	// 这是由于UBTCompositeNode :: NotifyDecoratorsOnActivation 
 	if (!bSkipAdding && UpdateInfo.Mode == EBTNodeUpdateMode::Remove && UpdateInfo.AuxNode)
 	{
+		// 检查是否是活动节点，如果是不是活动节点，就跳过
 		const bool bIsActive = OwnerComp.IsAuxNodeActive(UpdateInfo.AuxNode, UpdateInfo.InstanceIndex);
 		bSkipAdding = !bIsActive;
 	}
-
+	// 不能跳过
 	if (!bSkipAdding)
 	{
+		// 增加更新信息
 		const int32 Idx = PendingUpdates.Add(UpdateInfo);
+		// 是否后置更新
 		PendingUpdates[Idx].bPostUpdate = (UpdateInfo.Mode == EBTNodeUpdateMode::Add) && (Cast<UBTService>(UpdateInfo.AuxNode) != NULL);
 	}
 	else
@@ -464,7 +472,7 @@ void FBehaviorTreeSearchData::AddUniqueUpdate(const FBehaviorTreeSearchUpdate& U
 	}
 }
 
-// 
+// 分配搜索ID
 void FBehaviorTreeSearchData::AssignSearchId()
 {
 	SearchId = NextSearchId;
@@ -492,14 +500,18 @@ void FBehaviorTreeSearchData::Reset()
 //----------------------------------------------------------------------//
 void FBlackboardKeySelector::ResolveSelectedKey(const UBlackboardData& BlackboardAsset)
 {
+	// 已经设置好了名字
 	if (SelectedKeyName.IsNone() == false || !bNoneIsAllowedValue)
 	{
+		// 选择键名字为空
 		if (SelectedKeyName.IsNone() && !bNoneIsAllowedValue)
 		{
 			InitSelection(BlackboardAsset);
 		}
 
+		// 通过名字设置选择键ID
 		SelectedKeyID = BlackboardAsset.GetKeyID(SelectedKeyName);
+		// 通过ID得到选择键类型
 		SelectedKeyType = BlackboardAsset.GetKeyType(SelectedKeyID);
 		UE_CLOG(IsSet() == false, LogBehaviorTree, Warning
 			, TEXT("%s> Failed to find key \'%s\' in BB asset %s. BB Key Selector will be set to \'Invalid\'")
@@ -510,10 +522,13 @@ void FBlackboardKeySelector::ResolveSelectedKey(const UBlackboardData& Blackboar
 	}
 }
 
+// 初始化选择
 void FBlackboardKeySelector::InitSelection(const UBlackboardData& BlackboardAsset)
 {
+	// 遍历所有的黑板资源，向上遍历
 	for (const UBlackboardData* It = &BlackboardAsset; It; It = It->Parent)
 	{
+		// 遍历所有的键
 		for (int32 KeyIndex = 0; KeyIndex < It->Keys.Num(); KeyIndex++)
 		{
 			const FBlackboardEntry& EntryInfo = It->Keys[KeyIndex];
@@ -523,6 +538,7 @@ void FBlackboardKeySelector::InitSelection(const UBlackboardData& BlackboardAsse
 				if (AllowedTypes.Num())
 				{
 					bFilterPassed = false;
+					// 考虑所有的可接受的类型
 					for (int32 FilterIndex = 0; FilterIndex < AllowedTypes.Num(); FilterIndex++)
 					{
 						if (EntryInfo.KeyType->IsAllowedByFilter(AllowedTypes[FilterIndex]))
@@ -533,6 +549,7 @@ void FBlackboardKeySelector::InitSelection(const UBlackboardData& BlackboardAsse
 					}
 				}
 
+				// 找到第一个
 				if (bFilterPassed)
 				{
 					SelectedKeyName = EntryInfo.EntryName;
@@ -545,75 +562,90 @@ void FBlackboardKeySelector::InitSelection(const UBlackboardData& BlackboardAsse
 
 void FBlackboardKeySelector::AddObjectFilter(UObject* Owner, FName PropertyName, TSubclassOf<UObject> AllowedClass)
 {
+	// 创建一个唯一名字
 	const FName FilterName = MakeUniqueObjectName(Owner, UBlackboardKeyType_Object::StaticClass(), *FString::Printf(TEXT("%s_Object"), *PropertyName.ToString()));
 	UBlackboardKeyType_Object* FilterOb = NewObject<UBlackboardKeyType_Object>(Owner, FilterName);
 	FilterOb->BaseClass = AllowedClass;
+	// 允许的类型列表
 	AllowedTypes.Add(FilterOb);
 }
 
 void FBlackboardKeySelector::AddClassFilter(UObject* Owner, FName PropertyName, TSubclassOf<UObject> AllowedClass)
 {
+	// 创建一个唯一名字
 	const FName FilterName = MakeUniqueObjectName(Owner, UBlackboardKeyType_Class::StaticClass(), *FString::Printf(TEXT("%s_Class"), *PropertyName.ToString()));
 	UBlackboardKeyType_Class* FilterOb = NewObject<UBlackboardKeyType_Class>(Owner, FilterName);
 	FilterOb->BaseClass = AllowedClass;
+	// 允许的类型列表
 	AllowedTypes.Add(FilterOb);
 }
 
 void FBlackboardKeySelector::AddEnumFilter(UObject* Owner, FName PropertyName, UEnum* AllowedEnum)
 {
+	// 创建一个唯一名字
 	const FName FilterName = MakeUniqueObjectName(Owner, UBlackboardKeyType_Enum::StaticClass(), *FString::Printf(TEXT("%s_Enum"), *PropertyName.ToString()));
 	UBlackboardKeyType_Enum* FilterOb = NewObject<UBlackboardKeyType_Enum>(Owner, FilterName);
 	FilterOb->EnumType = AllowedEnum;
+	// 允许的类型列表
 	AllowedTypes.Add(FilterOb);
 }
 
 void FBlackboardKeySelector::AddNativeEnumFilter(UObject* Owner, FName PropertyName, const FString& AllowedEnumName)
 {
+	//  创建一个唯一名字
 	const FName FilterName = MakeUniqueObjectName(Owner, UBlackboardKeyType_NativeEnum::StaticClass(), *FString::Printf(TEXT("%s_NativeEnum"), *PropertyName.ToString()));
 	UBlackboardKeyType_NativeEnum* FilterOb = NewObject<UBlackboardKeyType_NativeEnum>(Owner, FilterName);
 	FilterOb->EnumName = AllowedEnumName;
+	// 允许的类型列表
 	AllowedTypes.Add(FilterOb);
 }
 
 void FBlackboardKeySelector::AddIntFilter(UObject* Owner, FName PropertyName)
 {
 	const FString FilterName = PropertyName.ToString() + TEXT("_Int");
+	// 允许的类型列表
 	AllowedTypes.Add(NewObject<UBlackboardKeyType_Int>(Owner, *FilterName));
 }
 
 void FBlackboardKeySelector::AddFloatFilter(UObject* Owner, FName PropertyName)
 {
 	const FString FilterName = PropertyName.ToString() + TEXT("_Float");
+	// 允许的类型列表
 	AllowedTypes.Add(NewObject<UBlackboardKeyType_Float>(Owner, *FilterName));
 }
 
 void FBlackboardKeySelector::AddBoolFilter(UObject* Owner, FName PropertyName)
 {
 	const FString FilterName = PropertyName.ToString() + TEXT("_Bool");
+	// 允许的类型列表
 	AllowedTypes.Add(NewObject<UBlackboardKeyType_Bool>(Owner, *FilterName));
 }
 
 void FBlackboardKeySelector::AddVectorFilter(UObject* Owner, FName PropertyName)
 {
 	const FString FilterName = PropertyName.ToString() + TEXT("_Vector");
+	// 允许的类型列表
 	AllowedTypes.Add(NewObject<UBlackboardKeyType_Vector>(Owner, *FilterName));
 }
 
 void FBlackboardKeySelector::AddRotatorFilter(UObject* Owner, FName PropertyName)
 {
 	const FString FilterName = PropertyName.ToString() + TEXT("_Rotator");
+	// 允许的类型列表
 	AllowedTypes.Add(NewObject<UBlackboardKeyType_Rotator>(Owner, *FilterName));
 }
 
 void FBlackboardKeySelector::AddStringFilter(UObject* Owner, FName PropertyName)
 {
 	const FString FilterName = PropertyName.ToString() + TEXT("_String");
+	// 允许的类型列表
 	AllowedTypes.Add(NewObject<UBlackboardKeyType_String>(Owner, *FilterName));
 }
 
 void FBlackboardKeySelector::AddNameFilter(UObject* Owner, FName PropertyName)
 {
 	const FString FilterName = PropertyName.ToString() + TEXT("_Name");
+	// 允许的类型列表
 	AllowedTypes.Add(NewObject<UBlackboardKeyType_Name>(Owner, *FilterName));
 }
 
@@ -628,42 +660,48 @@ void FBlackboardKeySelector::AddClassFilter(UObject* Owner, FName PropertyName, 
 // UBehaviorTreeTypes
 //----------------------------------------------------------------------//
 FString UBehaviorTreeTypes::BTLoggingContext;
-
+// 描述节点结果
 FString UBehaviorTreeTypes::DescribeNodeResult(EBTNodeResult::Type NodeResult)
 {
 	static FString ResultDesc[] = { TEXT("Succeeded"), TEXT("Failed"), TEXT("Aborted"), TEXT("InProgress") };
 	return (NodeResult < UE_ARRAY_COUNT(ResultDesc)) ? ResultDesc[NodeResult] : FString();
 }
 
+// 描述流中断模式
 FString UBehaviorTreeTypes::DescribeFlowAbortMode(EBTFlowAbortMode::Type AbortMode)
 {
 	static FString AbortModeDesc[] = { TEXT("None"), TEXT("Lower Priority"), TEXT("Self"), TEXT("Both") };
 	return (AbortMode < UE_ARRAY_COUNT(AbortModeDesc)) ? AbortModeDesc[AbortMode] : FString();
 }
 
+// 描述激活节点
 FString UBehaviorTreeTypes::DescribeActiveNode(EBTActiveNode::Type ActiveNodeType)
 {
 	static FString ActiveDesc[] = { TEXT("Composite"), TEXT("ActiveTask"), TEXT("AbortingTask"), TEXT("InactiveTask") };
 	return (ActiveNodeType < UE_ARRAY_COUNT(ActiveDesc)) ? ActiveDesc[ActiveNodeType] : FString();
 }
 
+// 描述任务状态
 FString UBehaviorTreeTypes::DescribeTaskStatus(EBTTaskStatus::Type TaskStatus)
 {
 	static FString TaskStatusDesc[] = { TEXT("Active"), TEXT("Aborting"), TEXT("Inactive") };
 	return (TaskStatus < UE_ARRAY_COUNT(TaskStatusDesc)) ? TaskStatusDesc[TaskStatus] : FString();
 }
 
+// 描述更新模式
 FString UBehaviorTreeTypes::DescribeNodeUpdateMode(EBTNodeUpdateMode::Type UpdateMode)
 {
 	static FString UpdateModeDesc[] = { TEXT("Unknown"), TEXT("Add"), TEXT("Remove") };
 	return (UpdateMode < UE_ARRAY_COUNT(UpdateModeDesc)) ? UpdateModeDesc[UpdateMode] : FString();
 }
 
+// 描述节点帮助
 FString UBehaviorTreeTypes::DescribeNodeHelper(const UBTNode* Node)
 {
 	return Node ? FString::Printf(TEXT("%s::%s[%d]"), *GetNameSafe(Node->GetTreeAsset()), *Node->GetNodeName(), Node->GetExecutionIndex()) : FString();
 }
 
+// 得到短类型名字
 FString UBehaviorTreeTypes::GetShortTypeName(const UObject* Ob)
 {
 	if (Ob->GetClass()->HasAnyClassFlags(CLASS_CompiledFromBlueprint))

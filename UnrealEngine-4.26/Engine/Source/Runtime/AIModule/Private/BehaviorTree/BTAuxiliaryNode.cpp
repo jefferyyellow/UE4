@@ -12,6 +12,7 @@ UBTAuxiliaryNode::UBTAuxiliaryNode(const FObjectInitializer& ObjectInitializer) 
 	ChildIndex = BTSpecialChild::OwnedByComposite;
 }
 
+// 节点实例化的包装器:OnBecomeRelevant
 void UBTAuxiliaryNode::WrappedOnBecomeRelevant(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory) const
 {
 	if (bNotifyBecomeRelevant)

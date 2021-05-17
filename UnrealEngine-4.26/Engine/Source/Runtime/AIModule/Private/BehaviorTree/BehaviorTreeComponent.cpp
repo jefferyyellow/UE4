@@ -226,11 +226,14 @@ bool UBehaviorTreeComponent::IsPaused() const
 	return bIsPaused;
 }
 
+// 从根开始执行
 void UBehaviorTreeComponent::StartTree(UBehaviorTree& Asset, EBTExecutionMode::Type ExecuteMode /*= EBTExecutionMode::Looped*/)
 {
 	// clear instance stack, start should always run new tree from root
+	// 清空实例堆栈，开始应始终从实例堆栈顶部运行新树
 	UBehaviorTree* CurrentRoot = GetRootTree();
-	
+
+	// 如果运行的树是最根部的树，并且树已经开始了
 	if (CurrentRoot == &Asset && TreeHasBeenStarted())
 	{
 		UE_VLOG(GetOwner(), LogBehaviorTree, Log, TEXT("Skipping behavior start request - it's already running"));
@@ -242,17 +245,22 @@ void UBehaviorTreeComponent::StartTree(UBehaviorTree& Asset, EBTExecutionMode::T
 			*GetNameSafe(CurrentRoot), *Asset.GetName());
 	}
 
+	// 停止树执行
 	StopTree(EBTStopMode::Safe);
 
+	// 设置启动信息
 	TreeStartInfo.Asset = &Asset;
 	TreeStartInfo.ExecuteMode = ExecuteMode;
 	TreeStartInfo.bPendingInitialize = true;
 
+	// 处理代办的初始化
 	ProcessPendingInitialize();
 }
 
+// 应用代办的树初始化
 void UBehaviorTreeComponent::ProcessPendingInitialize()
 {
+	// 停止树执行
 	StopTree(EBTStopMode::Safe);
 	if (bWaitingForAbortingTasks)
 	{
@@ -260,6 +268,7 @@ void UBehaviorTreeComponent::ProcessPendingInitialize()
 	}
 
 	// finish cleanup
+	// 完成清除
 	RemoveAllInstances();
 
 	bLoopExecution = (TreeStartInfo.ExecuteMode == EBTExecutionMode::Looped);
@@ -268,7 +277,7 @@ void UBehaviorTreeComponent::ProcessPendingInitialize()
 #if USE_BEHAVIORTREE_DEBUGGER
 	DebuggerSteps.Reset();
 #endif
-
+	// 加入行为树管理器
 	UBehaviorTreeManager* BTManager = UBehaviorTreeManager::GetCurrent(GetWorld());
 	if (BTManager)
 	{
@@ -276,10 +285,12 @@ void UBehaviorTreeComponent::ProcessPendingInitialize()
 	}
 
 	// push new instance
+	// 压入新的实例
 	const bool bPushed = PushInstance(*TreeStartInfo.Asset);
 	TreeStartInfo.bPendingInitialize = false;
 }
 
+// 结束执行
 void UBehaviorTreeComponent::StopTree(EBTStopMode::Type StopMode)
 {
 	SCOPE_CYCLE_COUNTER(STAT_AI_BehaviorTree_StopTree);
@@ -2210,9 +2221,11 @@ void UBehaviorTreeComponent::UpdateAbortingTasks()
 	}
 }
 
+// 在执行堆栈上推送行为树实例
 bool UBehaviorTreeComponent::PushInstance(UBehaviorTree& TreeAsset)
 {
 	// check if blackboard class match
+	// 检查黑板组件是否匹配
 	if (TreeAsset.BlackboardAsset && BlackboardComp && !BlackboardComp->IsCompatibleWith(TreeAsset.BlackboardAsset))
 	{
 		UE_VLOG(GetOwner(), LogBehaviorTree, Warning, TEXT("Failed to execute tree %s: blackboard %s is not compatibile with current: %s!"),
@@ -2221,6 +2234,7 @@ bool UBehaviorTreeComponent::PushInstance(UBehaviorTree& TreeAsset)
 		return false;
 	}
 
+	// 行为树管理器
 	UBehaviorTreeManager* BTManager = UBehaviorTreeManager::GetCurrent(GetWorld());
 	if (BTManager == NULL)
 	{
@@ -2229,13 +2243,17 @@ bool UBehaviorTreeComponent::PushInstance(UBehaviorTree& TreeAsset)
 	}
 
 	// check if parent node allows it
+	// 检查父节点是否允许它
 	const UBTNode* ActiveNode = GetActiveNode();
+	// 得到父节点
 	const UBTCompositeNode* ActiveParent = ActiveNode ? ActiveNode->GetParentNode() : NULL;
 	if (ActiveParent)
 	{
+		// 返回节点内存
 		uint8* ParentMemory = GetNodeMemory((UBTNode*)ActiveParent, InstanceStack.Num() - 1);
+		// 得到子节点的索引
 		int32 ChildIdx = ActiveNode ? ActiveParent->GetChildIndex(*ActiveNode) : INDEX_NONE;
-
+		// 是否可以执行新的子树
 		const bool bIsAllowed = ActiveParent->CanPushSubtree(*this, ParentMemory, ChildIdx);
 		if (!bIsAllowed)
 		{
@@ -2247,10 +2265,11 @@ bool UBehaviorTreeComponent::PushInstance(UBehaviorTree& TreeAsset)
 
 	UBTCompositeNode* RootNode = NULL;
 	uint16 InstanceMemorySize = 0;
-
+	// 加载树
 	const bool bLoaded = BTManager->LoadTree(TreeAsset, RootNode, InstanceMemorySize);
 	if (bLoaded)
 	{
+		// 新实例
 		FBehaviorTreeInstance NewInstance;
 		NewInstance.InstanceIdIndex = UpdateInstanceId(&TreeAsset, ActiveNode, InstanceStack.Num() - 1);
 		NewInstance.RootNode = RootNode;
@@ -2258,6 +2277,7 @@ bool UBehaviorTreeComponent::PushInstance(UBehaviorTree& TreeAsset)
 		NewInstance.ActiveNodeType = EBTActiveNode::Composite;
 
 		// initialize memory and node instances
+		// 初始化内存和节点实例
 		FBehaviorTreeInstanceId& InstanceInfo = KnownInstances[NewInstance.InstanceIdIndex];
 		int32 NodeInstanceIndex = InstanceInfo.FirstNodeInstance;
 		const bool bFirstTime = (InstanceInfo.InstanceMemory.Num() != InstanceMemorySize);
@@ -2266,20 +2286,23 @@ bool UBehaviorTreeComponent::PushInstance(UBehaviorTree& TreeAsset)
 			InstanceInfo.InstanceMemory.AddZeroed(InstanceMemorySize);
 			InstanceInfo.RootNode = RootNode;
 		}
-
+		// 设置实例内存
 		NewInstance.SetInstanceMemory(InstanceInfo.InstanceMemory);
+		// 初始化内存并创建节点实例
 		NewInstance.Initialize(*this, *RootNode, NodeInstanceIndex, bFirstTime ? EBTMemoryInit::Initialize : EBTMemoryInit::RestoreSubtree);
 
 		InstanceStack.Push(NewInstance);
 		ActiveInstanceIdx = InstanceStack.Num() - 1;
 
 		// start root level services now (they won't be removed on looping tree anyway)
+		// 启动根级别的服务节点
 		for (int32 ServiceIndex = 0; ServiceIndex < RootNode->Services.Num(); ServiceIndex++)
 		{
 			UBTService* ServiceNode = RootNode->Services[ServiceIndex];
 			uint8* NodeMemory = (uint8*)ServiceNode->GetNodeMemory<uint8>(InstanceStack[ActiveInstanceIdx]);
 
 			// send initial on search start events in case someone is using them for init logic
+			// 发送初始搜索开始事件，以防有人将其用于初始化逻辑 
 			ServiceNode->NotifyParentActivation(SearchData);
 
 			InstanceStack[ActiveInstanceIdx].AddToActiveAuxNodes(ServiceNode);
@@ -2289,6 +2312,7 @@ bool UBehaviorTreeComponent::PushInstance(UBehaviorTree& TreeAsset)
 		FBehaviorTreeDelegates::OnTreeStarted.Broadcast(*this, TreeAsset);
 
 		// start new task
+		// 启动新任务
 		RequestExecution(RootNode, ActiveInstanceIdx, RootNode, 0, EBTNodeResult::InProgress);
 		return true;
 	}
@@ -2296,17 +2320,20 @@ bool UBehaviorTreeComponent::PushInstance(UBehaviorTree& TreeAsset)
 	return false;
 }
 
+// 将新创建的子树的唯一ID添加到KnownInstances列表中并返回其索引 
 uint8 UBehaviorTreeComponent::UpdateInstanceId(UBehaviorTree* TreeAsset, const UBTNode* OriginNode, int32 OriginInstanceIdx)
 {
+	// 行为树实例的标志符
 	FBehaviorTreeInstanceId InstanceId;
 	InstanceId.TreeAsset = TreeAsset;
 
 	// build path from origin node
+	// 从原始节点创建路径
 	{
 		const uint16 ExecutionIndex = OriginNode ? OriginNode->GetExecutionIndex() : MAX_uint16;
 		InstanceId.Path.Add(ExecutionIndex);
 	}
-
+	// 遍历所有实例的激活节点
 	for (int32 InstanceIndex = OriginInstanceIdx - 1; InstanceIndex >= 0; InstanceIndex--)
 	{
 		const uint16 ExecutionIndex = InstanceStack[InstanceIndex].ActiveNode ? InstanceStack[InstanceIndex].ActiveNode->GetExecutionIndex() : MAX_uint16;
@@ -2314,6 +2341,7 @@ uint8 UBehaviorTreeComponent::UpdateInstanceId(UBehaviorTree* TreeAsset, const U
 	}
 
 	// try to find matching existing Id
+	// 尝试从存在的ID中找匹配的
 	for (int32 InstanceIndex = 0; InstanceIndex < KnownInstances.Num(); InstanceIndex++)
 	{
 		if (KnownInstances[InstanceIndex] == InstanceId)
@@ -2323,8 +2351,8 @@ uint8 UBehaviorTreeComponent::UpdateInstanceId(UBehaviorTree* TreeAsset, const U
 	}
 
 	// add new one
+	// 增加子树实例
 	InstanceId.FirstNodeInstance = NodeInstances.Num();
-
 	const int32 NewIndex = KnownInstances.Add(InstanceId);
 	check(NewIndex < MAX_uint8);
 	return NewIndex;
@@ -2411,6 +2439,7 @@ UBTNode* UBehaviorTreeComponent::FindTemplateNode(const UBTNode* Node) const
 	return NULL;
 }
 
+// 返回节点内存
 uint8* UBehaviorTreeComponent::GetNodeMemory(UBTNode* Node, int32 InstanceIdx) const
 {
 	return InstanceStack.IsValidIndex(InstanceIdx) ? (uint8*)Node->GetNodeMemory<uint8>(InstanceStack[InstanceIdx]) : NULL;

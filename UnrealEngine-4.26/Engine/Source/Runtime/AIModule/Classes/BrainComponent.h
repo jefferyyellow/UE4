@@ -120,6 +120,7 @@ class AIMODULE_API UBrainComponent : public UActorComponent, public IAIResourceI
 
 protected:
 	/** blackboard component */
+	// 黑板组件
 	UPROPERTY(transient)
 	UBlackboardComponent* BlackboardComp;
 

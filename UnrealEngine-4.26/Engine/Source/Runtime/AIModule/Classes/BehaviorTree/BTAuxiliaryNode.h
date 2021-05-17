@@ -33,6 +33,7 @@ class AIMODULE_API UBTAuxiliaryNode : public UBTNode
 	GENERATED_UCLASS_BODY()
 
 	/** wrapper for node instancing: OnBecomeRelevant */
+	// 节点实例化的包装器:OnBecomeRelevant
 	void WrappedOnBecomeRelevant(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory) const;
 
 	/** wrapper for node instancing: OnCeaseRelevant */

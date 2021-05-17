@@ -114,6 +114,7 @@ class AIMODULE_API UBTCompositeNode : public UBTNode
 	/** get index of child node (handle subtrees) */
 	int32 GetChildIndex(FBehaviorTreeSearchData& SearchData, const UBTNode& ChildNode) const;
 	/** get index of child node */
+	// 得到子节点的得索引
 	int32 GetChildIndex(const UBTNode& ChildNode) const;
 
 	/** called before passing search to child node */
@@ -158,6 +159,7 @@ class AIMODULE_API UBTCompositeNode : public UBTNode
 	virtual void DescribeRuntimeValues(const UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory, EBTDescriptionVerbosity::Type Verbosity, TArray<FString>& Values) const override;
 
 	/** check if child node can execute new subtree */
+	// 检查子节点是否可以执行新的子树 
 	virtual bool CanPushSubtree(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory, int32 ChildIdx) const;
 
 #if WITH_EDITOR
