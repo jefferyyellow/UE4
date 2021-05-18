@@ -120,15 +120,17 @@ class AIMODULE_API UBehaviorTreeComponent : public UBrainComponent
 	virtual EAILogicResuming::Type ResumeLogic(const FString& Reason) override;
 
 	/** indicates instance has been initialized to work with specific BT asset */
-	// 表示实例已被初始化以使用特定的BT资产
+	// 表示实例已被初始化以使用特定的BT资产（树已经开始执行）
 	bool TreeHasBeenStarted() const;
 
 public:
 	/** DO NOT USE. This constructor is for internal usage only for hot-reload purposes. */
 	// 禁止使用。该构造函数只是用于热加载目的的内部使用
 	UBehaviorTreeComponent(FVTableHelper& Helper);
-
+	
+	// 是否执行中（已经开始执行并且没有暂停）
 	virtual bool IsRunning() const override;
+	// 是否已经暂停
 	virtual bool IsPaused() const override;
 	virtual void Cleanup() override;
 	virtual void HandleMessage(const FAIMessage& Message) override;
@@ -177,6 +179,7 @@ public:
 	void RegisterMessageObserver(const UBTTaskNode* TaskNode, FName MessageType, FAIRequestID MessageID);
 	
 	/** remove message observers registered with task */
+	// 删除任务注册的消息观察者 
 	void UnregisterMessageObserversFrom(const UBTTaskNode* TaskNode);
 	void UnregisterMessageObserversFrom(const FBTNodeIndex& TaskIdx);
 
@@ -201,12 +204,14 @@ public:
 	/** END UActorComponent overrides */
 
 	/** Schedule when will be the next tick, 0.0f means next frame, FLT_MAX means never */
+	// 安排下一帧的时间，0.0f表示下一帧，FLT_MAX表示从来不
 	void ScheduleNextTick(float NextDeltaTime);
 
 	/** process execution flow */
 	void ProcessExecutionRequest();
 
 	/** schedule execution flow update in next tick */
+	// 在下一个tick安排执行流更新
 	void ScheduleExecutionUpdate();
 
 	/** tries to find behavior tree instance in context */
@@ -240,6 +245,7 @@ public:
 	bool IsAbortPending() const;
 
 	/** @return true if active node is one of child nodes of given one */
+	// 如果激活节点是给定节点的一个子节点就返回true
 	bool IsExecutingBranch(const UBTNode* Node, int32 ChildIndex = -1) const;
 
 	/** @return true if aux node is currently active */
@@ -300,12 +306,15 @@ protected:
 	FBehaviorTreeSearchData SearchData;
 
 	/** execution request, search will be performed when current task finish execution/aborting */
+	// 执行请求，当当前任务完成执行/中止时将执行搜索
 	FBTNodeExecutionInfo ExecutionRequest;
 
 	/** result of ExecutionRequest, will be applied when current task finish aborting */
+	// ExecutionRequest的结果，当前任务完成终止时会应用
 	FBTPendingExecutionInfo PendingExecution;
 
 	/** list of all pending aux nodes unregistration requests */
+	// 列出所有未办的aux节点取消注册请求
 	FBTPendingAuxNodesUnregisterInfo PendingUnregisterAuxNodesRequests;
 
 	/** stored data for starting new tree, waits until previously running finishes aborting */
@@ -343,24 +352,30 @@ protected:
 	uint16 ActiveInstanceIdx;
 
 	/** if set, StopTree calls will be deferred */
+	// 如果设置，StopTree得调用将延迟
 	uint8 StopTreeLock;
 
 	/** if set, StopTree will be called at the end of tick */
+	// 如果设置，StopTree将会在tick得结尾调用
 	uint8 bDeferredStopTree : 1;
 
 	/** loops tree execution */
 	uint8 bLoopExecution : 1;
 
 	/** set when execution is waiting for tasks to abort (current or parallel's main) */
+	// 当执行是等待任务中止时设置（当前或者并行）
 	uint8 bWaitingForAbortingTasks : 1;
 
 	/** set when execution update is scheduled for next tick */
+	// 设置何时计划下一次执行更新
 	uint8 bRequestedFlowUpdate : 1;
 
 	/** set when tree stop was called */
+	// 当树的stop函数被调用时设置
 	uint8 bRequestedStop : 1;
 
 	/** if set, tree execution is allowed */
+	// 如果设置，树执行已经允许
 	uint8 bIsRunning : 1;
 
 	/** if set, execution requests will be postponed */
@@ -380,9 +395,11 @@ protected:
 	void RemoveAllInstances();
 
 	/** copy memory block from running instances to persistent memory */
+	// 从运行实例中将内存拷贝到持久化内存中
 	void CopyInstanceMemoryToPersistent();
 
 	/** copy memory block from persistent memory to running instances (rollback) */
+	// 将持久化内存内存块拷贝到运行实例中
 	void CopyInstanceMemoryFromPersistent();
 
 	/** find next task to execute */
@@ -407,6 +424,7 @@ protected:
 	void ExecuteTask(UBTTaskNode* TaskNode);
 
 	/** deactivate all nodes up to requested one */
+	// 停用所有的节点一直到requested那个
 	bool DeactivateUpTo(UBTCompositeNode* Node, uint16 NodeInstanceIdx, EBTNodeResult::Type& NodeResult, int32& OutLastDeactivatedChildIndex);
 
 	/** update state of aborting tasks */
@@ -426,6 +444,7 @@ protected:
 	bool ProcessPendingUnregister();
 
 	/** restore state of tree to state before search */
+	// 恢复树的状态到搜索以前
 	void RollbackSearchChanges();
 
 	/** make a snapshot for debugger */
@@ -472,12 +491,14 @@ protected:
 	UBehaviorTree* DefaultBehaviorTreeAsset;
 
 	/** Used to tell tickmanager that we want interval ticking */
+	// 用于告诉tickmanager，我们需要间隔ticking
 	bool bTickedOnce = false;
 	/** Predicted next DeltaTime*/
 	float NextTickDeltaTime = 0.0f;
 	/** Accumulated DeltaTime if ticked more than predicted next delta time */
 	float AccumulatedTickDeltaTime = 0.0f;
 	/** GameTime of the last DeltaTime request, used for debugging to output warnings about ticking */
+	// 上一次DeltaTime请求的GameTime
 	float LastRequestedDeltaTimeGameTime = 0;
 
 #if CSV_PROFILER

@@ -110,13 +110,17 @@ void UBehaviorTreeComponent::RegisterComponentTickFunctions(bool bRegister)
 	Super::RegisterComponentTickFunctions(bRegister);
 }
 
+//  设置组件的tick可用
 void UBehaviorTreeComponent::SetComponentTickEnabled(bool bEnabled)
 {
+	// 是否启用Tick
 	bool bWasEnabled = IsComponentTickEnabled();
 	Super::SetComponentTickEnabled(bEnabled);
 
 	// If enabling the component, this acts like a new component to tick in the TickTaskManager
 	// So act like the component was never ticked
+	// 如果启用该组件，这种行为就像一个新的组件在TickTaskManager中tick
+	// 所以行为就像该组件从来没有ticked
 	if(!bWasEnabled && IsComponentTickEnabled())
 	{
 		bTickedOnce = false;
@@ -211,16 +215,19 @@ EAILogicResuming::Type UBehaviorTreeComponent::ResumeLogic(const FString& Reason
 	return SuperResumeResult;
 }
 
+// 表示实例已被初始化以使用特定的BT资产（树已经开始执行）
 bool UBehaviorTreeComponent::TreeHasBeenStarted() const
 {
 	return bIsRunning && InstanceStack.Num();
 }
 
+// 是否执行中（已经开始执行并且没有暂停）
 bool UBehaviorTreeComponent::IsRunning() const
 { 
 	return bIsPaused == false && TreeHasBeenStarted() == true;
 }
 
+// 是否已经暂停
 bool UBehaviorTreeComponent::IsPaused() const
 {
 	return bIsPaused;
@@ -294,17 +301,20 @@ void UBehaviorTreeComponent::ProcessPendingInitialize()
 void UBehaviorTreeComponent::StopTree(EBTStopMode::Type StopMode)
 {
 	SCOPE_CYCLE_COUNTER(STAT_AI_BehaviorTree_StopTree);
-
+	// 树停止锁
 	if (StopTreeLock)
 	{
+		// 延迟停止树标志，StopTree将会在tick得结尾调用
 		bDeferredStopTree = true;
 		ScheduleNextTick(0.0f);
 		return;
 	}
 
 	FScopedBehaviorTreeLock ScopedLock(*this, FScopedBehaviorTreeLock::LockReentry);
+	// 没有调用过Stop函数
 	if (!bRequestedStop)
 	{
+		// 设置调用过Stop函数
 		bRequestedStop = true;
 
 		for (int32 InstanceIndex = InstanceStack.Num() - 1; InstanceIndex >= 0; InstanceIndex--)
@@ -312,6 +322,7 @@ void UBehaviorTreeComponent::StopTree(EBTStopMode::Type StopMode)
 			FBehaviorTreeInstance& InstanceInfo = InstanceStack[InstanceIndex];
 
 			// notify active aux nodes
+			// 通知激活的辅助节点，每一个都调用CeaseRelevant
 			InstanceInfo.ExecuteOnEachAuxNode([&InstanceInfo, this](const UBTAuxiliaryNode& AuxNode)
 				{
 					uint8* NodeMemory = AuxNode.GetNodeMemory<uint8>(InstanceInfo);
@@ -324,6 +335,9 @@ void UBehaviorTreeComponent::StopTree(EBTStopMode::Type StopMode)
 			// calling OnTaskFinished with result other than InProgress will unregister parallel task,
 			// modifying array we're iterating on - iterator needs to be moved one step back in that case
 			//
+			// 通知所有激活的平行任务
+			// 调用带有结果的OnTaskFinished而不是InProgress将取消注册并行任务，
+			// 修改我们正在遍历的数组，在这种情况下，迭代器需要回退一格
 			InstanceInfo.ExecuteOnEachParallelTask([&InstanceInfo, this](const FBehaviorTreeParallelTask& ParallelTaskInfo, const int32 ParallelIndex)
 				{
 					if (ParallelTaskInfo.Status != EBTTaskStatus::Active)
@@ -338,8 +352,10 @@ void UBehaviorTreeComponent::StopTree(EBTStopMode::Type StopMode)
 					}
 
 					// remove all message observers added by task execution, so they won't interfere with Abort call
+					// 删除执行任务时增加的所有消息observers，这样他们就不会干扰中止调用
 					UnregisterMessageObserversFrom(CachedTaskNode);
 
+					// 中止任务
 					uint8* NodeMemory = CachedTaskNode->GetNodeMemory<uint8>(InstanceInfo);
 					EBTNodeResult::Type NodeResult = CachedTaskNode->WrappedAbortTask(*this, NodeMemory);
 
@@ -348,6 +364,7 @@ void UBehaviorTreeComponent::StopTree(EBTStopMode::Type StopMode)
 						(NodeResult == EBTNodeResult::InProgress) ? TEXT("in progress") : TEXT("instant"));
 
 					// mark as pending abort
+					// 标记为代办的中止
 					if (NodeResult == EBTNodeResult::InProgress)
 					{
 						const bool bIsValidForStatus = InstanceInfo.IsValidParallelTaskIndex(ParallelIndex) && (ParallelTaskInfo.TaskNode == CachedTaskNode);
@@ -362,11 +379,12 @@ void UBehaviorTreeComponent::StopTree(EBTStopMode::Type StopMode)
 								*UBehaviorTreeTypes::DescribeNodeHelper(CachedTaskNode));
 						}
 					}
-
+					// 调用任务完成
 					OnTaskFinished(CachedTaskNode, NodeResult);
 				});
 
 			// notify active task
+			// 通知当前的活动任务
 			if (InstanceInfo.ActiveNodeType == EBTActiveNode::ActiveTask)
 			{
 				const UBTTaskNode* TaskNode = Cast<const UBTTaskNode>(InstanceInfo.ActiveNode);
@@ -391,6 +409,7 @@ void UBehaviorTreeComponent::StopTree(EBTStopMode::Type StopMode)
 		}
 	}
 
+	// 等待中止的并行任务
 	if (bWaitingForAbortingTasks)
 	{
 		if (StopMode == EBTStopMode::Safe)
@@ -403,6 +422,7 @@ void UBehaviorTreeComponent::StopTree(EBTStopMode::Type StopMode)
 	}
 
 	// make sure that all nodes are getting deactivation notifies
+	// 确定所有的节点都获得停用的通知
 	if (InstanceStack.Num())
 	{
 		int32 DeactivatedChildIndex = INDEX_NONE;
@@ -411,6 +431,7 @@ void UBehaviorTreeComponent::StopTree(EBTStopMode::Type StopMode)
 	}
 
 	// clear current state, don't touch debugger data
+	// 清空当前的状态
 	for (int32 InstanceIndex = 0; InstanceIndex < InstanceStack.Num(); InstanceIndex++)
 	{
 		FBehaviorTreeInstance& InstanceInfo = InstanceStack[InstanceIndex];
@@ -425,6 +446,7 @@ void UBehaviorTreeComponent::StopTree(EBTStopMode::Type StopMode)
 	ActiveInstanceIdx = 0;
 
 	// make sure to allow new execution requests
+	// 确保允许新的执行请求
 	bRequestedFlowUpdate = false;
 	bRequestedStop = false;
 	bIsRunning = false;
@@ -809,18 +831,22 @@ void UBehaviorTreeComponent::RequestExecution(EBTNodeResult::Type LastResult)
 	}
 }
 
+// 查找共同的祖先
 static void FindCommonParent(const TArray<FBehaviorTreeInstance>& Instances, const TArray<FBehaviorTreeInstanceId>& KnownInstances,
 							 UBTCompositeNode* InNodeA, uint16 InstanceIdxA,
 							 UBTCompositeNode* InNodeB, uint16 InstanceIdxB,
 							 UBTCompositeNode*& CommonParentNode, uint16& CommonInstanceIdx)
 {
 	// find two nodes in the same instance (choose lower index = closer to root)
+	// 在同一个实例上的两个节点（选择更小的索引，相当于更靠近根部）
 	CommonInstanceIdx = (InstanceIdxA <= InstanceIdxB) ? InstanceIdxA : InstanceIdxB;
 
+	// 靠近根的那个节点取父节点
 	UBTCompositeNode* NodeA = (CommonInstanceIdx == InstanceIdxA) ? InNodeA : Instances[CommonInstanceIdx].ActiveNode->GetParentNode();
 	UBTCompositeNode* NodeB = (CommonInstanceIdx == InstanceIdxB) ? InNodeB : Instances[CommonInstanceIdx].ActiveNode->GetParentNode();
 
 	// special case: node was taken from CommonInstanceIdx, but it had ActiveNode set to root (no parent)
+	// 特殊情况：节点取自CommonInstanceIdx，但其ActiveNode设置为root（无父节点） 
 	if (!NodeA && CommonInstanceIdx != InstanceIdxA)
 	{
 		NodeA = Instances[CommonInstanceIdx].RootNode;
@@ -831,6 +857,7 @@ static void FindCommonParent(const TArray<FBehaviorTreeInstance>& Instances, con
 	}
 
 	// if one of nodes is still empty, we have serious problem with execution flow - crash and log details
+	// 如果节点之一仍然为空，则我们的执行流程存在严重问题-崩溃和日志详细信息 
 	if (!NodeA || !NodeB)
 	{
 		FString AssetAName = Instances.IsValidIndex(InstanceIdxA) && KnownInstances.IsValidIndex(Instances[InstanceIdxA].InstanceIdIndex) ? GetNameSafe(KnownInstances[Instances[InstanceIdxA].InstanceIdIndex].TreeAsset) : TEXT("unknown");
@@ -847,9 +874,11 @@ static void FindCommonParent(const TArray<FBehaviorTreeInstance>& Instances, con
 	}
 
 	// find common parent of two nodes
+	// 查找两个节点的共同祖先
 	int32 NodeADepth = NodeA->GetTreeDepth();
 	int32 NodeBDepth = NodeB->GetTreeDepth();
 
+	// 先往上遍历到同一深度
 	while (NodeADepth > NodeBDepth)
 	{
 		NodeA = NodeA->GetParentNode();
@@ -862,6 +891,7 @@ static void FindCommonParent(const TArray<FBehaviorTreeInstance>& Instances, con
 		NodeBDepth = NodeB->GetTreeDepth();
 	}
 
+	// 节点同时往上遍历
 	while (NodeA != NodeB)
 	{
 		NodeA = NodeA->GetParentNode();
@@ -871,6 +901,7 @@ static void FindCommonParent(const TArray<FBehaviorTreeInstance>& Instances, con
 	CommonParentNode = NodeA;
 }
 
+// 在下一个tick安排执行流更新
 void UBehaviorTreeComponent::ScheduleExecutionUpdate()
 {
 	ScheduleNextTick(0.0f);
@@ -892,6 +923,7 @@ void UBehaviorTreeComponent::RequestExecution(UBTCompositeNode* RequestedOn, int
 		*UBehaviorTreeTypes::DescribeNodeHelper(RequestedBy),
 		*UBehaviorTreeTypes::DescribeNodeResult(ContinueWithResult));
 
+	// 检查行为树的状态
 	if (!bIsRunning || !InstanceStack.IsValidIndex(ActiveInstanceIdx) || (GetOwner() && GetOwner()->IsPendingKillPending()))
 	{
 		UE_VLOG(GetOwner(), LogBehaviorTree, Log, TEXT("> skip: tree is not running"));
@@ -915,6 +947,7 @@ void UBehaviorTreeComponent::RequestExecution(UBTCompositeNode* RequestedOn, int
 	uint16 LastExecutionIndex = MAX_uint16;
 
 	// make sure that the request is not coming from a node that has pending unregistration since it won't be accessible anymore
+	// 确保请求不是从未注册的节点来的，因为其已经不能在访问
 	for (const FBTNodeIndexRange& Range : PendingUnregisterAuxNodesRequests.Ranges)
 	{
 		if (Range.Contains(ExecutionIdx))
@@ -932,17 +965,21 @@ void UBehaviorTreeComponent::RequestExecution(UBTCompositeNode* RequestedOn, int
 		LastExecutionIndex = RequestedOn->GetChildExecutionIndex(RequestedByChildIndex + 1, EBTChildIndex::FirstNode);
 	}
 
+	// 搜索结尾
 	const FBTNodeIndex SearchEnd(InstanceIdx, LastExecutionIndex);
 
 	// check if it's more important than currently requested
+	// 检查它是否比当前的请求更加重要
 	if (bAlreadyHasRequest && ExecutionRequest.SearchStart.TakesPriorityOver(ExecutionIdx))
 	{
 		UE_VLOG(GetOwner(), LogBehaviorTree, Log, TEXT("> skip: already has request with higher priority"));
 		StoreDebuggerRestart(DebuggerNode, InstanceIdx, true);
 
 		// make sure to update end of search range
+		// 切换到更高的优先级
 		if (bSwitchToHigherPriority)
 		{
+			// 替换SearchEnd，进行拓展
 			if (ExecutionRequest.SearchEnd.IsSet() && ExecutionRequest.SearchEnd.TakesPriorityOver(SearchEnd))
 			{
 				UE_VLOG(GetOwner(), LogBehaviorTree, Log, TEXT("> expanding end of search range!"));
@@ -951,6 +988,7 @@ void UBehaviorTreeComponent::RequestExecution(UBTCompositeNode* RequestedOn, int
 		}
 		else
 		{
+			// 移除SearchEnd的限制
 			if (ExecutionRequest.SearchEnd.IsSet())
 			{
 				UE_VLOG(GetOwner(), LogBehaviorTree, Log, TEXT("> removing limit from end of search range!"));
@@ -963,9 +1001,11 @@ void UBehaviorTreeComponent::RequestExecution(UBTCompositeNode* RequestedOn, int
 
     // Not only checking against deactivated branch upon applying search data or while aborting task, 
     // but also while waiting after a latent task to abort
+	// 不仅在应用搜索数据时或在中止任务时检查停用的分支，还在等待潜在任务中止后等待 
 	if (SearchData.bFilterOutRequestFromDeactivatedBranch || bWaitingForAbortingTasks)
 	{
 		// request on same node or with higher priority doesn't require additional checks
+		// 在同一节点上或具有更高优先级的请求不需要其他检查 
 		if (SearchData.SearchRootNode != ExecutionIdx && SearchData.SearchRootNode.TakesPriorityOver(ExecutionIdx))
 		{
 			if (ExecutionIdx == SearchData.DeactivatedBranchStart ||
@@ -980,11 +1020,14 @@ void UBehaviorTreeComponent::RequestExecution(UBTCompositeNode* RequestedOn, int
 	}
 
 	// when it's aborting and moving to higher priority node:
+	// 当它终止并且转移到一个更高优先级的节点
 	if (bSwitchToHigherPriority)
 	{
 		// check if decorators allow execution on requesting link
 		// unless it's branch restart (abort result within current branch), when it can't be skipped because branch can be no longer valid
+		// 检查装饰器是否允许在请求的链接上执行，除非分支重新启动（当前分支内的中止结果），否则由于分支不再有效而无法跳过装饰 
 		const bool bShouldCheckDecorators = (RequestedByChildIndex >= 0) && !IsExecutingBranch(RequestedBy, RequestedByChildIndex);
+		// 如果不需要检查装饰节点
 		const bool bCanExecute = !bShouldCheckDecorators || RequestedOn->DoDecoratorsAllowExecution(*this, InstanceIdx, RequestedByChildIndex);
 		if (!bCanExecute)
 		{
@@ -994,8 +1037,10 @@ void UBehaviorTreeComponent::RequestExecution(UBTCompositeNode* RequestedOn, int
 		}
 
 		// update common parent: requesting node with prev common/active node
+		// 更新公共父节点：具有上一个公共/活动节点的请求节点
 		UBTCompositeNode* CurrentNode = ExecutionRequest.ExecuteNode;
 		uint16 CurrentInstanceIdx = ExecutionRequest.ExecuteInstanceIdx;
+		// 当前执行的节点为空，设置当前的执行节点和当前的树实例索引
 		if (ExecutionRequest.ExecuteNode == NULL)
 		{
 			FBehaviorTreeInstance& ActiveInstance = InstanceStack[ActiveInstanceIdx];
@@ -1006,14 +1051,16 @@ void UBehaviorTreeComponent::RequestExecution(UBTCompositeNode* RequestedOn, int
 			CurrentInstanceIdx = ActiveInstanceIdx;
 		}
 
+		// 当前节点和请求执行的节点不一致
 		if (ExecutionRequest.ExecuteNode != RequestedOn)
 		{
 			UBTCompositeNode* CommonParent = NULL;
 			uint16 CommonInstanceIdx = MAX_uint16;
-
+			// 搜索共同的父节点
 			FindCommonParent(InstanceStack, KnownInstances, RequestedOn, InstanceIdx, CurrentNode, CurrentInstanceIdx, CommonParent, CommonInstanceIdx);
 
 			// check decorators between common parent and restart parent
+			// 检查共同祖先和重启的父节点之间的装饰器
 			int32 ItInstanceIdx = InstanceIdx;
 			for (UBTCompositeNode* It = RequestedOn; It && It != CommonParent;)
 			{
@@ -1023,6 +1070,7 @@ void UBehaviorTreeComponent::RequestExecution(UBTCompositeNode* RequestedOn, int
 				if (ParentNode == nullptr)
 				{
 					// move up the tree stack
+					// 树堆栈往上移动一格
 					if (ItInstanceIdx > 0)
 					{
 						ItInstanceIdx--;
@@ -1038,9 +1086,10 @@ void UBehaviorTreeComponent::RequestExecution(UBTCompositeNode* RequestedOn, int
 				}
 				else
 				{
+					// 得到节点在父节点的子节点索引
 					ChildIdx = ParentNode->GetChildIndex(*It);
 				}
-
+				// 装饰节点是否允许执行
 				const bool bCanExecuteTest = ParentNode->DoDecoratorsAllowExecution(*this, ItInstanceIdx, ChildIdx);
 				if (!bCanExecuteTest)
 				{
@@ -1059,10 +1108,12 @@ void UBehaviorTreeComponent::RequestExecution(UBTCompositeNode* RequestedOn, int
 	else
 	{
 		// check if decorators allow execution on requesting link (only when restart comes from composite decorator)
+		// 检查装饰器是否允许在请求链接上执行（仅当重新启动来自复合装饰器时） 
 		const bool bShouldCheckDecorators = RequestedOn->Children.IsValidIndex(RequestedByChildIndex) &&
 			(RequestedOn->Children[RequestedByChildIndex].DecoratorOps.Num() > 0) &&
 			RequestedBy->IsA(UBTDecorator::StaticClass());
 
+		// 装饰器是否允许执行
 		const bool bCanExecute = bShouldCheckDecorators && RequestedOn->DoDecoratorsAllowExecution(*this, InstanceIdx, RequestedByChildIndex);
 		if (bCanExecute)
 		{
@@ -1080,6 +1131,7 @@ void UBehaviorTreeComponent::RequestExecution(UBTCompositeNode* RequestedOn, int
 
 	// search end can be set only when switching to high priority
 	// or previous request was limited and current limit is wider
+	// 仅当切换到高优先级或先前的请求受到限制并且当前限制更宽时，才可以设置搜索结束
 	if ((!bAlreadyHasRequest && bSwitchToHigherPriority) ||
 		(ExecutionRequest.SearchEnd.IsSet() && ExecutionRequest.SearchEnd.TakesPriorityOver(SearchEnd)))
 	{
@@ -1095,6 +1147,7 @@ void UBehaviorTreeComponent::RequestExecution(UBTCompositeNode* RequestedOn, int
 	
 	// break out of current search if new request is more important than currently processed one
 	// no point in starting new task just to abandon it in next tick
+	// 如果新请求比当前处理的请求更重要，则中断当前搜索，开始新任务只是在下一个tick中放弃就没有意义了 
 	if (SearchData.bSearchInProgress)
 	{
 		UE_VLOG(GetOwner(), LogBehaviorTree, Log, TEXT("> aborting current task search!"));
@@ -1104,6 +1157,9 @@ void UBehaviorTreeComponent::RequestExecution(UBTCompositeNode* RequestedOn, int
 	// latent task abort:
 	// - don't search, just accumulate requests and run them when abort is done
 	// - rollback changes from search that caused abort to ensure proper state of tree
+	//潜在任务中止：
+	//-不搜索，仅累积请求并在中止完成后运行它们
+	//-搜索的回滚更改导致中止以确保树的正确状态 
 	const bool bIsActiveNodeAborting = InstanceStack.Num() && InstanceStack.Last().ActiveNodeType == EBTActiveNode::AbortingTask;
 	const bool bInvalidateCurrentSearch = bWaitingForAbortingTasks || bIsActiveNodeAborting;
 	const bool bScheduleNewSearch = !bWaitingForAbortingTasks;
@@ -1112,6 +1168,8 @@ void UBehaviorTreeComponent::RequestExecution(UBTCompositeNode* RequestedOn, int
 	{
         // We are aborting the current search, but in the case we were searching to a next child, we cannot look for only higher priority as sub decorator might still fail
 		// Previous search might have been a different range, so just open it up to cover all cases
+		// 我们正在中止当前的搜索，但是在我们搜索下一个孩子的情况下，我们不能只寻找更高的优先级，
+		// 因为子装饰器仍然可能失败先前的搜索可能是一个不同的范围，因此只需打开它来覆盖 所有情况 
 		if (ExecutionRequest.SearchEnd.IsSet())
 		{
 			UE_VLOG(GetOwner(), LogBehaviorTree, Log, TEXT("> removing limit from end of search range because of request during task abortion!"));
@@ -1490,6 +1548,7 @@ void UBehaviorTreeComponent::TickComponent(float DeltaTime, enum ELevelTick Tick
 #endif // DO_ENSURE
 }
 
+// 安排下一帧的时间，0.0f表示下一帧，FLT_MAX表示从来不
 void UBehaviorTreeComponent::ScheduleNextTick(const float NextNeededDeltaTime)
 {
 	NextTickDeltaTime = NextNeededDeltaTime;
@@ -1499,6 +1558,7 @@ void UBehaviorTreeComponent::ScheduleNextTick(const float NextNeededDeltaTime)
 	}
 
 	UE_VLOG(GetOwner(), LogBehaviorTree, VeryVerbose, TEXT("BT(%i) schedule next tick %f, asked %f."), GFrameCounter, NextTickDeltaTime, NextNeededDeltaTime);
+	// 如果NextTickDeltaTime设置成FLT_MAX，直接把ComponentTick禁用了
 	if (NextTickDeltaTime == FLT_MAX)
 	{
 		if (IsComponentTickEnabled())
@@ -1508,15 +1568,18 @@ void UBehaviorTreeComponent::ScheduleNextTick(const float NextNeededDeltaTime)
 	}
 	else
 	{
+		// 如果是禁用状态，就启用
 		if (!IsComponentTickEnabled())
 		{
 			SetComponentTickEnabled(true);
 		}
 		// We need to force a small dt to tell the TickTaskManager we might not want to be tick every frame.
+		// 我们需要强制一个小的dt告诉TickTaskManager我们可能不想在每一帧都tick。 
 		const float FORCE_TICK_INTERVAL_DT = KINDA_SMALL_NUMBER;
 		SetComponentTickIntervalAndCooldown(!bTickedOnce && NextTickDeltaTime < FORCE_TICK_INTERVAL_DT ? FORCE_TICK_INTERVAL_DT : NextTickDeltaTime);
 	}
 	UWorld* MyWorld = GetWorld();
+	// 记录修改DeltaTime的游戏时间
 	LastRequestedDeltaTimeGameTime = MyWorld ? MyWorld->GetTimeSeconds() : 0.0f;
 }
 
@@ -1548,6 +1611,7 @@ void UBehaviorTreeComponent::ProcessExecutionRequest()
 	}
 
 	bool bIsSearchValid = true;
+	// 保存回滚的数据
 	SearchData.RollbackInstanceIdx = ActiveInstanceIdx;
 	SearchData.RollbackDeactivatedBranchStart = SearchData.DeactivatedBranchStart;
 	SearchData.RollbackDeactivatedBranchEnd = SearchData.DeactivatedBranchEnd;
@@ -1830,44 +1894,54 @@ void UBehaviorTreeComponent::ProcessPendingExecution()
 	}
 }
 
+// 恢复树的状态到搜索以前
 void UBehaviorTreeComponent::RollbackSearchChanges()
 {
 	if (SearchData.RollbackInstanceIdx >= 0)
 	{
+		// 恢复回滚的数据
 		ActiveInstanceIdx = SearchData.RollbackInstanceIdx;
 		SearchData.DeactivatedBranchStart = SearchData.RollbackDeactivatedBranchStart;
 		SearchData.DeactivatedBranchEnd = SearchData.RollbackDeactivatedBranchEnd;
 
+		// 然后将回滚的数据清空
 		SearchData.RollbackInstanceIdx = INDEX_NONE;
 		SearchData.RollbackDeactivatedBranchStart = FBTNodeIndex();
 		SearchData.RollbackDeactivatedBranchEnd = FBTNodeIndex();
 
+		// 如果设置了激活节点不会回滚的标志
 		if (SearchData.bPreserveActiveNodeMemoryOnRollback)
 		{
+			// 遍历所有的实例
 			for (int32 Idx = 0; Idx < InstanceStack.Num(); Idx++)
 			{
+				// 注意这两个的不一致
 				FBehaviorTreeInstance& InstanceData = InstanceStack[Idx];
 				FBehaviorTreeInstanceId& InstanceInfo = KnownInstances[InstanceData.InstanceIdIndex];
 
+				// 节点内存的尺寸
 				const uint16 NodeMemorySize = InstanceData.ActiveNode ? InstanceData.ActiveNode->GetInstanceMemorySize() : 0;
 				if (NodeMemorySize)
 				{
 					// copy over stored data in persistent, rollback is one time action and it won't be needed anymore
+					// 以持久方式复制存储的数据，回滚是一项一次性的操作，因此不需要
 					const uint8* NodeMemory = InstanceData.ActiveNode->GetNodeMemory<uint8>(InstanceData);
 					uint8* DestMemory = InstanceInfo.InstanceMemory.GetData() + InstanceData.ActiveNode->GetMemoryOffset();
 
 					FMemory::Memcpy(DestMemory, NodeMemory, NodeMemorySize);
 				}
-
+				// 重新设置实例内存
 				InstanceData.SetInstanceMemory(InstanceInfo.InstanceMemory);
 			}
 		}
 		else
 		{
+			// 持久实例内存拷贝到实例内存中
 			CopyInstanceMemoryFromPersistent();
 		}
 
 		// apply new observer changes
+		// 应用新的观察者变化
 		ApplyDiscardedSearch();
 	}
 }
@@ -2135,8 +2209,10 @@ void UBehaviorTreeComponent::RegisterMessageObserver(const UBTTaskNode* TaskNode
 	}
 }
 
+// 删除任务注册的消息观察者
 void UBehaviorTreeComponent::UnregisterMessageObserversFrom(const FBTNodeIndex& TaskIdx)
 {
+	// 从消息观察者map中删除
 	const int32 NumRemoved = TaskMessageObservers.Remove(TaskIdx);
 	if (NumRemoved)
 	{
@@ -2145,12 +2221,14 @@ void UBehaviorTreeComponent::UnregisterMessageObserversFrom(const FBTNodeIndex& 
 	}
 }
 
+// 删除任务注册的消息观察者
 void UBehaviorTreeComponent::UnregisterMessageObserversFrom(const UBTTaskNode* TaskNode)
 {
 	if (TaskNode && InstanceStack.Num())
 	{
 		const FBehaviorTreeInstance& ActiveInstance = InstanceStack.Last();
 
+		// 建立节点索引，执行索引喝实例索引
 		FBTNodeIndex NodeIdx;
 		NodeIdx.ExecutionIndex = TaskNode->GetExecutionIndex();
 		NodeIdx.InstanceIndex = FindInstanceContainingNode(TaskNode);
@@ -2290,7 +2368,7 @@ bool UBehaviorTreeComponent::PushInstance(UBehaviorTree& TreeAsset)
 		NewInstance.SetInstanceMemory(InstanceInfo.InstanceMemory);
 		// 初始化内存并创建节点实例
 		NewInstance.Initialize(*this, *RootNode, NodeInstanceIndex, bFirstTime ? EBTMemoryInit::Initialize : EBTMemoryInit::RestoreSubtree);
-
+		// 压入实例数组
 		InstanceStack.Push(NewInstance);
 		ActiveInstanceIdx = InstanceStack.Num() - 1;
 
@@ -2447,6 +2525,7 @@ uint8* UBehaviorTreeComponent::GetNodeMemory(UBTNode* Node, int32 InstanceIdx) c
 
 void UBehaviorTreeComponent::RemoveAllInstances()
 {
+	// 如果还有实例化得行为树，表示还在运行，就得先停掉
 	if (InstanceStack.Num())
 	{
 		StopTree(EBTStopMode::Forced);
@@ -2460,6 +2539,8 @@ void UBehaviorTreeComponent::RemoveAllInstances()
 		{
 			// instance memory will be removed on Cleanup in EBTMemoryClear::Destroy mode
 			// prevent from calling it multiple times - StopTree does it for current InstanceStack
+			// 实例内存将在EBTMemoryClear :: Destroy模式下的Cleanup上被删除，
+			// 以防止多次调用它-StopTree为当前InstanceStack进行调用 
 			DummyInstance.SetInstanceMemory(Info.InstanceMemory);
 			DummyInstance.InstanceIdIndex = Idx;
 			DummyInstance.RootNode = Info.RootNode;
@@ -2467,11 +2548,12 @@ void UBehaviorTreeComponent::RemoveAllInstances()
 			DummyInstance.Cleanup(*this, EBTMemoryClear::Destroy);
 		}
 	}
-
+	// 将实例和节点都重置了
 	KnownInstances.Reset();
 	NodeInstances.Reset();
 }
 
+// 从运行实例中将内存拷贝到持久化内存中
 void UBehaviorTreeComponent::CopyInstanceMemoryToPersistent()
 {
 	for (int32 InstanceIndex = 0; InstanceIndex < InstanceStack.Num(); InstanceIndex++)
@@ -2483,6 +2565,7 @@ void UBehaviorTreeComponent::CopyInstanceMemoryToPersistent()
 	}
 }
 
+// 将持久化内存内存块拷贝到运行实例中
 void UBehaviorTreeComponent::CopyInstanceMemoryFromPersistent()
 {
 	for (int32 InstanceIndex = 0; InstanceIndex < InstanceStack.Num(); InstanceIndex++)

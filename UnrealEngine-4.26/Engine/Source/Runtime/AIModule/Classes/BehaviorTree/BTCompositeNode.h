@@ -80,6 +80,7 @@ struct FBTCompositeChild
 	TArray<UBTDecorator*> Decorators;
 
 	/** logic operations for decorators */
+	// 装饰器的逻辑操作
 	UPROPERTY()
 	TArray<FBTDecoratorLogic> DecoratorOps;
 };
@@ -175,6 +176,7 @@ class AIMODULE_API UBTCompositeNode : public UBTNode
 	uint16 GetBranchExecutionIndex(uint16 NodeInBranchIdx) const;
 
 	/** is child execution allowed by decorators? */
+	// 装饰节点是否允许子树执行
 	bool DoDecoratorsAllowExecution(UBehaviorTreeComponent& OwnerComp, int32 InstanceIdx, int32 ChildIdx) const;
 
 	bool IsApplyingDecoratorScope() const;

@@ -421,6 +421,7 @@ static bool UpdateOperationStack(const UBehaviorTreeComponent& OwnerComp, FStrin
 	return bTestResult;
 }
 
+// 装饰节点是否允许子树执行
 bool UBTCompositeNode::DoDecoratorsAllowExecution(UBehaviorTreeComponent& OwnerComp, int32 InstanceIdx, int32 ChildIdx) const
 {
 	ensure(Children.IsValidIndex(ChildIdx));
@@ -433,7 +434,7 @@ bool UBTCompositeNode::DoDecoratorsAllowExecution(UBehaviorTreeComponent& OwnerC
 
 	const FBTCompositeChild& ChildInfo = Children[ChildIdx];
 	bool bResult = true;
-
+	// 没有装饰节点就直接返回True
 	if (ChildInfo.Decorators.Num() == 0)
 	{
 		return bResult;
@@ -441,17 +442,21 @@ bool UBTCompositeNode::DoDecoratorsAllowExecution(UBehaviorTreeComponent& OwnerC
 
 	FBehaviorTreeInstance& MyInstance = OwnerComp.InstanceStack[InstanceIdx];
 
+	// 没有装饰器的逻辑操作
 	if (ChildInfo.DecoratorOps.Num() == 0)
 	{
 		// simple check: all decorators must agree
+		// 简单检查，所有的装饰器必须都同意
 		for (int32 DecoratorIndex = 0; DecoratorIndex < ChildInfo.Decorators.Num(); DecoratorIndex++)
 		{
 			const UBTDecorator* TestDecorator = ChildInfo.Decorators[DecoratorIndex];
+			// 是否同意
 			const bool bIsAllowed = TestDecorator ? TestDecorator->WrappedCanExecute(OwnerComp, TestDecorator->GetNodeMemory<uint8>(MyInstance)) : false;
 			OwnerComp.StoreDebuggerSearchStep(TestDecorator, InstanceIdx, bIsAllowed);
 
 			const UBTNode* ChildNode = GetChildNode(ChildIdx);
 
+			// 如果有一个装饰节点不同意，直接跳出
 			if (!bIsAllowed)
 			{
 				UE_VLOG(OwnerComp.GetOwner(), LogBehaviorTree, Verbose, TEXT("Child[%d] \"%s\" execution forbidden by %s"),
@@ -470,6 +475,7 @@ bool UBTCompositeNode::DoDecoratorsAllowExecution(UBehaviorTreeComponent& OwnerC
 	else
 	{
 		// advanced check: follow decorator logic operations (composite decorator on child link)
+		// 高级检查：遵循装饰器逻辑操作（子链接上的复合装饰器） 
 		UE_VLOG(OwnerComp.GetOwner(), LogBehaviorTree, Verbose, TEXT("Child[%d] execution test with logic operations"), ChildIdx);
 
 		TArray<FOperationStackInfo> OperationStack;
@@ -483,7 +489,7 @@ bool UBTCompositeNode::DoDecoratorsAllowExecution(UBehaviorTreeComponent& OwnerC
 		int32 NodeDecoratorIdx = INDEX_NONE;
 		int32 FailedDecoratorIdx = INDEX_NONE;
 		bool bShouldStoreNodeIndex = true;
-
+		// 遍历所有的装饰操作
 		for (int32 OperationIndex = 0; OperationIndex < ChildInfo.DecoratorOps.Num(); OperationIndex++)
 		{
 			const FBTDecoratorLogic& DecoratorOp = ChildInfo.DecoratorOps[OperationIndex];
