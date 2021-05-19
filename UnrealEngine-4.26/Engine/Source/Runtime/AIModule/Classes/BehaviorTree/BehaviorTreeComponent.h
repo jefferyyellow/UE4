@@ -106,17 +106,22 @@ class AIMODULE_API UBehaviorTreeComponent : public UBrainComponent
 	GENERATED_UCLASS_BODY()
 
 	// UActorComponent overrides
-	// 注册所有的tick函数
+	// 注册组件的tick函数
 	virtual void RegisterComponentTickFunctions(bool bRegister) override;
 	// 设置组件的tick可用
 	virtual void SetComponentTickEnabled(bool bEnabled) override;
 
 	// Begin UBrainComponent overrides
 	// UBrainComponent组件的虚拟接口的overrides
+	// 开始逻辑
 	virtual void StartLogic() override;
+	// 重启逻辑
 	virtual void RestartLogic() override;
+	// 结束逻辑
 	virtual void StopLogic(const FString& Reason) override;
+	// 暂停逻辑
 	virtual void PauseLogic(const FString& Reason) override;
+	// 恢复逻辑
 	virtual EAILogicResuming::Type ResumeLogic(const FString& Reason) override;
 
 	/** indicates instance has been initialized to work with specific BT asset */
@@ -132,7 +137,9 @@ public:
 	virtual bool IsRunning() const override;
 	// 是否已经暂停
 	virtual bool IsPaused() const override;
+	// 清理
 	virtual void Cleanup() override;
+	// 处理消息
 	virtual void HandleMessage(const FAIMessage& Message) override;
 	// End UBrainComponent overrides
 
@@ -215,9 +222,11 @@ public:
 	void ScheduleExecutionUpdate();
 
 	/** tries to find behavior tree instance in context */
+	// 在上下文环境中找到行为树实例
 	int32 FindInstanceContainingNode(const UBTNode* Node) const;
 
 	/** tries to find template node for given instanced node */
+	// 对于给定的实例节点查找对应的模板节点
 	UBTNode* FindTemplateNode(const UBTNode* Node) const;
 
 	/** @return current tree */
@@ -360,6 +369,7 @@ protected:
 	uint8 bDeferredStopTree : 1;
 
 	/** loops tree execution */
+	// 循环的树执行
 	uint8 bLoopExecution : 1;
 
 	/** set when execution is waiting for tasks to abort (current or parallel's main) */
@@ -375,10 +385,11 @@ protected:
 	uint8 bRequestedStop : 1;
 
 	/** if set, tree execution is allowed */
-	// 如果设置，树执行已经允许
+	// 运行中，如果设置，树执行已经允许
 	uint8 bIsRunning : 1;
 
 	/** if set, execution requests will be postponed */
+	// 暂停，如果设置，执行请求将会延迟
 	uint8 bIsPaused : 1;
 
 	/** push behavior tree instance on execution stack
@@ -392,6 +403,7 @@ protected:
 	uint8 UpdateInstanceId(UBehaviorTree* TreeAsset, const UBTNode* OriginNode, int32 OriginInstanceIdx);
 
 	/** remove instanced nodes, known subtree instances and safely clears their persistent memory */
+	// 删除实例节点，已知的子树实例和安全地清空持久化内存
 	void RemoveAllInstances();
 
 	/** copy memory block from running instances to persistent memory */
@@ -406,6 +418,7 @@ protected:
 	UBTTaskNode* FindNextTask(UBTCompositeNode* ParentNode, uint16 ParentInstanceIdx, EBTNodeResult::Type LastResult);
 
 	/** called when tree runs out of nodes to execute */
+	// 当树执行完所有的节点后调用
 	void OnTreeFinished();
 
 	/** apply pending node updates from SearchData */
@@ -428,6 +441,7 @@ protected:
 	bool DeactivateUpTo(UBTCompositeNode* Node, uint16 NodeInstanceIdx, EBTNodeResult::Type& NodeResult, int32& OutLastDeactivatedChildIndex);
 
 	/** update state of aborting tasks */
+	// 更新中止任务的状态
 	void UpdateAbortingTasks();
 
 	/** apply pending execution from last task search */
@@ -487,6 +501,7 @@ protected:
 
 protected:
 	/** data asset defining the tree */
+	// 定义的树的资产
 	UPROPERTY(EditDefaultsOnly, BlueprintReadWrite, Category = AI)
 	UBehaviorTree* DefaultBehaviorTreeAsset;
 

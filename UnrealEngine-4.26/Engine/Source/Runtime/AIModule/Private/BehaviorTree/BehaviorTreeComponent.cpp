@@ -89,8 +89,10 @@ UBehaviorTreeComponent::UBehaviorTreeComponent(FVTableHelper& Helper)
 
 }
 
+// 取消初始化
 void UBehaviorTreeComponent::UninitializeComponent()
 {
+	// 从行为树管理器删除
 	UBehaviorTreeManager* BTManager = UBehaviorTreeManager::GetCurrent(GetWorld());
 	if (BTManager)
 	{
@@ -101,6 +103,7 @@ void UBehaviorTreeComponent::UninitializeComponent()
 	Super::UninitializeComponent();
 }
 
+// 注册组件的tick函数
 void UBehaviorTreeComponent::RegisterComponentTickFunctions(bool bRegister)
 {
 	if (bRegister)
@@ -128,6 +131,7 @@ void UBehaviorTreeComponent::SetComponentTickEnabled(bool bEnabled)
 	}
 }
 
+// 开始逻辑
 void UBehaviorTreeComponent::StartLogic()
 {
 	UE_VLOG(GetOwner(), LogBehaviorTree, Log, TEXT("%s"), ANSI_TO_TCHAR(__FUNCTION__));
@@ -138,6 +142,7 @@ void UBehaviorTreeComponent::StartLogic()
 		return;
 	}
 
+	// 开始信息没有设置树的资产，直接用默认的
 	if (TreeStartInfo.IsSet() == false)
 	{
 		TreeStartInfo.Asset = DefaultBehaviorTreeAsset;
@@ -154,18 +159,21 @@ void UBehaviorTreeComponent::StartLogic()
 	}
 }
 
+// 重启逻辑
 void UBehaviorTreeComponent::RestartLogic()
 {
 	UE_VLOG(GetOwner(), LogBehaviorTree, Log, TEXT("%s"), ANSI_TO_TCHAR(__FUNCTION__));
 	RestartTree();
 }
 
+// 结束逻辑
 void UBehaviorTreeComponent::StopLogic(const FString& Reason) 
 {
 	UE_VLOG(GetOwner(), LogBehaviorTree, Log, TEXT("Stopping BT, reason: \'%s\'"), *Reason);
 	StopTree(EBTStopMode::Safe);
 }
 
+// 暂停逻辑
 void UBehaviorTreeComponent::PauseLogic(const FString& Reason)
 {
 	UE_VLOG(GetOwner(), LogBehaviorTree, Log, TEXT("Execution updates: PAUSED (%s)"), *Reason);
@@ -177,20 +185,25 @@ void UBehaviorTreeComponent::PauseLogic(const FString& Reason)
 	}
 }
 
+// 恢复逻辑
 EAILogicResuming::Type UBehaviorTreeComponent::ResumeLogic(const FString& Reason)
 {
 	UE_VLOG(GetOwner(), LogBehaviorTree, Log, TEXT("Execution updates: RESUMED (%s)"), *Reason);
 	const EAILogicResuming::Type SuperResumeResult = Super::ResumeLogic(Reason);
+	// 如果是暂停状态
 	if (!!bIsPaused)
 	{
+		// 取消暂停，并在下一帧调用tick函数
 		bIsPaused = false;
 		ScheduleNextTick(0.0f);
 
+		// 继续
 		if (SuperResumeResult == EAILogicResuming::Continue)
 		{
 			if (BlackboardComp)
 			{
 				// Resume the blackboard's observer notifications and send any queued notifications
+				// 恢复黑板的观察者通知并且发送任何排队通知
 				BlackboardComp->ResumeObserverNotifications(true);
 			}
 
@@ -202,6 +215,7 @@ EAILogicResuming::Type UBehaviorTreeComponent::ResumeLogic(const FString& Reason
 
 			return EAILogicResuming::Continue;
 		}
+		// 重启
 		else if (SuperResumeResult == EAILogicResuming::RestartedInstead)
 		{
 			if (BlackboardComp)
@@ -454,12 +468,14 @@ void UBehaviorTreeComponent::StopTree(EBTStopMode::Type StopMode)
 	bDeferredStopTree = false;
 }
 
+// 从根重新开始执行
 void UBehaviorTreeComponent::RestartTree()
 {
 	UE_VLOG(GetOwner(), LogBehaviorTree, Log, TEXT("%s"), ANSI_TO_TCHAR(__FUNCTION__));
-	
+	// 如不是运行状态
 	if (!bIsRunning)
 	{
+		// 开始信息都设置好了，直接走初始化步骤
 		if (TreeStartInfo.IsSet())
 		{
 			TreeStartInfo.bPendingInitialize = true;
@@ -470,10 +486,12 @@ void UBehaviorTreeComponent::RestartTree()
 			UE_VLOG(GetOwner(), LogBehaviorTree, Warning, TEXT("\tFailed to restart tree logic since it has never been started and it\'s not possible to say which BT asset to use."));
 		}
 	}
+	// 已经是运行状态了，并且是调用stop函数中
 	else if (bRequestedStop)
 	{
 		TreeStartInfo.bPendingInitialize = true;
 	}
+	// 运行状态了，也不是stop函数中，那就从根开始执行
 	else if (InstanceStack.Num())
 	{
 		FBehaviorTreeInstance& TopInstance = InstanceStack[0];
@@ -481,24 +499,28 @@ void UBehaviorTreeComponent::RestartTree()
 	}
 }
 
+// 清理
 void UBehaviorTreeComponent::Cleanup()
 {
 	SCOPE_CYCLE_COUNTER(STAT_AI_BehaviorTree_Cleanup);
-
+	// 树停止
 	StopTree(EBTStopMode::Forced);
 	RemoveAllInstances();
 
+	// 将树实例和堆栈实例都清空
 	KnownInstances.Reset();
 	InstanceStack.Reset();
 	NodeInstances.Reset();
 }
 
+// 处理消息
 void UBehaviorTreeComponent::HandleMessage(const FAIMessage& Message)
 {
 	Super::HandleMessage(Message);
 	ScheduleNextTick(0.0f);
 }
 
+// 完成潜在的执行或中止
 void UBehaviorTreeComponent::OnTaskFinished(const UBTTaskNode* TaskNode, EBTNodeResult::Type TaskResult)
 {
 	if (TaskNode == NULL || InstanceStack.Num() == 0 || IsPendingKill())
@@ -511,29 +533,36 @@ void UBehaviorTreeComponent::OnTaskFinished(const UBTTaskNode* TaskNode, EBTNode
 
 	// notify parent node
 	UBTCompositeNode* ParentNode = TaskNode->GetParentNode();
+	// 找到对应的树实例
 	const int32 TaskInstanceIdx = FindInstanceContainingNode(TaskNode);
 	if (!InstanceStack.IsValidIndex(TaskInstanceIdx))
 	{
 		return;
 	}
 
+	// 找到父节点内存
 	uint8* ParentMemory = ParentNode->GetNodeMemory<uint8>(InstanceStack[TaskInstanceIdx]);
 
 	const bool bWasWaitingForAbort = bWaitingForAbortingTasks;
+	// 父节点通知子节点执行
 	ParentNode->ConditionalNotifyChildExecution(*this, ParentMemory, *TaskNode, TaskResult);
 	
+	// 任务不是执行中
 	if (TaskResult != EBTNodeResult::InProgress)
 	{
 		StoreDebuggerSearchStep(TaskNode, TaskInstanceIdx, TaskResult);
 
 		// cleanup task observers
+		// 清空任务的观察者
 		UnregisterMessageObserversFrom(TaskNode);
 
 		// notify task about it
+		// 通知任务节点本身，任务已经完成
 		uint8* TaskMemory = TaskNode->GetNodeMemory<uint8>(InstanceStack[TaskInstanceIdx]);
 		TaskNode->WrappedOnTaskFinished(*this, TaskMemory, TaskResult);
 
 		// update execution when active task is finished
+		// 当活动任务完成更新执行
 		if (InstanceStack.IsValidIndex(ActiveInstanceIdx) && InstanceStack[ActiveInstanceIdx].ActiveNode == TaskNode)
 		{
 			FBehaviorTreeInstance& ActiveInstance = InstanceStack[ActiveInstanceIdx];
@@ -541,23 +570,27 @@ void UBehaviorTreeComponent::OnTaskFinished(const UBTTaskNode* TaskNode, EBTNode
 			ActiveInstance.ActiveNodeType = EBTActiveNode::InactiveTask;
 
 			// request execution from parent
+			// 要求从父节点执行
 			if (!bWasAborting)
 			{
 				RequestExecution(TaskResult);
 			}
 		}
+		// 如果执行结果是中止
 		else if (TaskResult == EBTNodeResult::Aborted && InstanceStack.IsValidIndex(TaskInstanceIdx) && InstanceStack[TaskInstanceIdx].ActiveNode == TaskNode)
 		{
 			// active instance may be already changed when getting back from AbortCurrentTask 
 			// (e.g. new task is higher on stack)
-
+			// 从AbortCurrentTask返回时，活动实例可能已经更改
 			InstanceStack[TaskInstanceIdx].ActiveNodeType = EBTActiveNode::InactiveTask;
 		}
 
 		// update state of aborting tasks after currently finished one was set to Inactive
+		// 当前完成的任务设置为“不活动”后，更新中止任务的状态 
 		UpdateAbortingTasks();
 
 		// make sure that we continue execution after all pending latent aborts finished
+		// 确保所有潜在等待的中止任务都完成了，我们才继续执行
 		if (!bWaitingForAbortingTasks && bWasWaitingForAbort)
 		{
 			if (bRequestedStop)
@@ -567,6 +600,7 @@ void UBehaviorTreeComponent::OnTaskFinished(const UBTTaskNode* TaskNode, EBTNode
 			else
 			{
 				// force new search if there were any execution requests while waiting for aborting task
+				// 等待中止任务时是否有任何执行请求，强制执行新搜索 
 				if (ExecutionRequest.ExecuteNode)
 				{
 					UE_VLOG(GetOwner(), LogBehaviorTree, Log, TEXT("> found valid ExecutionRequest, locking PendingExecution data to force new search!"));
@@ -583,23 +617,29 @@ void UBehaviorTreeComponent::OnTaskFinished(const UBTTaskNode* TaskNode, EBTNode
 			}
 		}
 	}
+	// 任务在执行中
 	else
 	{
 		// always update state of aborting tasks
+		// 更新中止任务的状态
 		UpdateAbortingTasks();
 	}
 
+	// 是否有未完成的初始化
 	if (TreeStartInfo.HasPendingInitialize())
 	{
+		// 处理未完成的初始化
 		ProcessPendingInitialize();
 	}
 }
 
+// 当树执行完所有的节点后调用
 void UBehaviorTreeComponent::OnTreeFinished()
 {
 	UE_VLOG(GetOwner(), LogBehaviorTree, Verbose, TEXT("Ran out of nodes to check, %s tree."),
 		bLoopExecution ? TEXT("looping") : TEXT("stopping"));
 
+	// 激活的实例索引为最顶上的
 	ActiveInstanceIdx = 0;
 	StoreDebuggerExecutionStep(EBTExecutionSnap::OutOfNodes);
 
@@ -607,20 +647,27 @@ void UBehaviorTreeComponent::OnTreeFinished()
 	{
 		// it should be already deactivated (including root)
 		// set active node to initial state: root activation
+		// 它应该已经被停用（包括root）
+		// 将活动节点设置为初始状态：根激活 
 		FBehaviorTreeInstance& TopInstance = InstanceStack[0];
 		TopInstance.ActiveNode = NULL;
 		TopInstance.ActiveNodeType = EBTActiveNode::Composite;
 
 		// make sure that all active aux nodes will be removed
 		// root level services are being handled on applying search data
+		// 确保所有活动的辅助节点都将被删除
+		// 在应用搜索数据时正在处理根级服务 
 		UnregisterAuxNodesUpTo(FBTNodeIndex(0, 0));
 
 		// result doesn't really matter, root node will be reset and start iterating child nodes from scratch
 		// although it shouldn't be set to Aborted, as it has special meaning in RequestExecution (switch to higher priority)
+		// 结果并不重要，根节点将被重置并从头开始迭代子节点
+		// 尽管不应将其设置为“中止”，因为它在RequestExecution中具有特殊含义（切换到更高的优先级） 
 		RequestExecution(TopInstance.RootNode, 0, TopInstance.RootNode, 0, EBTNodeResult::InProgress);
 	}
 	else
 	{
+		// 不是循环执行就停止执行
 		StopTree(EBTStopMode::Safe);
 	}
 }
@@ -813,6 +860,7 @@ EBTNodeRelativePriority UBehaviorTreeComponent::CalculateRelativePriority(const 
 	return RelativePriority;
 }
 
+// 要求执行变更：任务节点
 void UBehaviorTreeComponent::RequestExecution(EBTNodeResult::Type LastResult)
 {
 	// task helpers can't continue with InProgress or Aborted result, it should be handled 
@@ -821,10 +869,12 @@ void UBehaviorTreeComponent::RequestExecution(EBTNodeResult::Type LastResult)
 	if (LastResult != EBTNodeResult::Aborted && LastResult != EBTNodeResult::InProgress && InstanceStack.IsValidIndex(ActiveInstanceIdx))
 	{
 		const FBehaviorTreeInstance& ActiveInstance = InstanceStack[ActiveInstanceIdx];
+		// 得到执行节点的父节点
 		UBTCompositeNode* ExecuteParent = (ActiveInstance.ActiveNode == NULL) ? ActiveInstance.RootNode :
 			(ActiveInstance.ActiveNodeType == EBTActiveNode::Composite) ? (UBTCompositeNode*)ActiveInstance.ActiveNode :
 			ActiveInstance.ActiveNode->GetParentNode();
 
+		// 执行父节点
 		RequestExecution(ExecuteParent, InstanceStack.Num() - 1,
 			ActiveInstance.ActiveNode ? ActiveInstance.ActiveNode : ActiveInstance.RootNode, -1,
 			LastResult, false);
@@ -2281,13 +2331,16 @@ void UBehaviorTreeComponent::UnregisterParallelTask(const UBTTaskNode* TaskNode,
 	}
 }
 
+// 更新中止任务的状态
 void UBehaviorTreeComponent::UpdateAbortingTasks()
 {
+	// 当前任务是否为中止任务
 	bWaitingForAbortingTasks = InstanceStack.Num() ? (InstanceStack.Last().ActiveNodeType == EBTActiveNode::AbortingTask) : false;
-
+	// 遍历所有的实例
 	for (int32 InstanceIndex = 0; InstanceIndex < InstanceStack.Num() && !bWaitingForAbortingTasks; InstanceIndex++)
 	{
 		FBehaviorTreeInstance& InstanceInfo = InstanceStack[InstanceIndex];
+		// 遍历所有实例中的并行任务
 		for (const FBehaviorTreeParallelTask& ParallelInfo : InstanceInfo.GetParallelTasks())
 		{
 			if (ParallelInfo.Status == EBTTaskStatus::Aborting)
@@ -2436,21 +2489,25 @@ uint8 UBehaviorTreeComponent::UpdateInstanceId(UBehaviorTree* TreeAsset, const U
 	return NewIndex;
 }
 
+// 在上下文环境中找到行为树实例
 int32 UBehaviorTreeComponent::FindInstanceContainingNode(const UBTNode* Node) const
 {
 	int32 InstanceIdx = INDEX_NONE;
-
+	// 查找模板节点
 	const UBTNode* TemplateNode = FindTemplateNode(Node);
 	if (TemplateNode && InstanceStack.Num())
 	{
+		// 如果活动节点不是对应节点的模板节点
 		if (InstanceStack[ActiveInstanceIdx].ActiveNode != TemplateNode)
 		{
+			// 找到根节点
 			const UBTNode* RootNode = TemplateNode;
 			while (RootNode->GetParentNode())
 			{
 				RootNode = RootNode->GetParentNode();
 			}
 
+			// 遍历所有的树实例，查看当前的节点属于哪个树实例
 			for (int32 InstanceIndex = 0; InstanceIndex < InstanceStack.Num(); InstanceIndex++)
 			{
 				if (InstanceStack[InstanceIndex].RootNode == RootNode)
@@ -2469,6 +2526,7 @@ int32 UBehaviorTreeComponent::FindInstanceContainingNode(const UBTNode* Node) co
 	return InstanceIdx;
 }
 
+// 对于给定的实例节点查找对应的模板节点
 UBTNode* UBehaviorTreeComponent::FindTemplateNode(const UBTNode* Node) const
 {
 	if (Node == NULL || !Node->IsInstanced() || Node->GetParentNode() == NULL)
@@ -2476,18 +2534,23 @@ UBTNode* UBehaviorTreeComponent::FindTemplateNode(const UBTNode* Node) const
 		return (UBTNode*)Node;
 	}
 
+	// 先找到父节点
 	UBTCompositeNode* ParentNode = Node->GetParentNode();
+	// 遍历父节点的所有直接点
 	for (int32 ChildIndex = 0; ChildIndex < ParentNode->Children.Num(); ChildIndex++)
 	{
 		FBTCompositeChild& ChildInfo = ParentNode->Children[ChildIndex];
 
+		// Task节点
 		if (ChildInfo.ChildTask)
 		{
+			// 如果节点就是Task节点，并且有相同的执行索引
 			if (ChildInfo.ChildTask->GetExecutionIndex() == Node->GetExecutionIndex())
 			{
 				return ChildInfo.ChildTask;
 			}
 
+			// 如果是服务节点，，找到相同的执行索引
 			for (int32 ServiceIndex = 0; ServiceIndex < ChildInfo.ChildTask->Services.Num(); ServiceIndex++)
 			{
 				if (ChildInfo.ChildTask->Services[ServiceIndex]->GetExecutionIndex() == Node->GetExecutionIndex())
@@ -2497,6 +2560,7 @@ UBTNode* UBehaviorTreeComponent::FindTemplateNode(const UBTNode* Node) const
 			}
 		}
 
+		// 或者是装饰节点
 		for (int32 DecoratorIndex = 0; DecoratorIndex < ChildInfo.Decorators.Num(); DecoratorIndex++)
 		{
 			if (ChildInfo.Decorators[DecoratorIndex]->GetExecutionIndex() == Node->GetExecutionIndex())
@@ -2505,7 +2569,8 @@ UBTNode* UBehaviorTreeComponent::FindTemplateNode(const UBTNode* Node) const
 			}
 		}
 	}
-
+	
+	// 或者是父节点的服务节点
 	for (int32 ServiceIndex = 0; ServiceIndex < ParentNode->Services.Num(); ServiceIndex++)
 	{
 		if (ParentNode->Services[ServiceIndex]->GetExecutionIndex() == Node->GetExecutionIndex())
@@ -2523,6 +2588,7 @@ uint8* UBehaviorTreeComponent::GetNodeMemory(UBTNode* Node, int32 InstanceIdx) c
 	return InstanceStack.IsValidIndex(InstanceIdx) ? (uint8*)Node->GetNodeMemory<uint8>(InstanceStack[InstanceIdx]) : NULL;
 }
 
+// 删除实例节点，已知的子树实例和安全地清空持久化内存
 void UBehaviorTreeComponent::RemoveAllInstances()
 {
 	// 如果还有实例化得行为树，表示还在运行，就得先停掉
