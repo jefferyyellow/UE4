@@ -215,6 +215,7 @@ public:
 	void ScheduleNextTick(float NextDeltaTime);
 
 	/** process execution flow */
+	// 处理执行流
 	void ProcessExecutionRequest();
 
 	/** schedule execution flow update in next tick */
@@ -258,6 +259,7 @@ public:
 	bool IsExecutingBranch(const UBTNode* Node, int32 ChildIndex = -1) const;
 
 	/** @return true if aux node is currently active */
+	// 如果辅助节点是当前的活动节点，就返回true
 	bool IsAuxNodeActive(const UBTAuxiliaryNode* AuxNode) const;
 	bool IsAuxNodeActive(const UBTAuxiliaryNode* AuxNodeTemplate, int32 InstanceIdx) const;
 
@@ -265,6 +267,7 @@ public:
 	bool IsInstanceStackEmpty() const { return (InstanceStack.Num() == 0); }
 
 	/** @return status of speficied task */
+	// 返回指定任务节点的状态
 	EBTTaskStatus::Type GetTaskStatus(const UBTTaskNode* TaskNode) const;
 
 	virtual FString GetDebugInfoString() const override;
@@ -425,9 +428,11 @@ protected:
 	void ApplySearchData(UBTNode* NewActiveNode);
 
 	/** apply pending node updates required for discarded search */
+	// 通过放弃搜索的方式来应用等待的节点更新要求
 	void ApplyDiscardedSearch();
 
 	/** apply updates from specific list */
+	// 应用特定列表中的更新 
 	void ApplySearchUpdates(const TArray<FBehaviorTreeSearchUpdate>& UpdateList, int32 NewNodeExecutionIndex, bool bPostUpdate = false);
 
 	/** abort currently executed task */
@@ -445,6 +450,7 @@ protected:
 	void UpdateAbortingTasks();
 
 	/** apply pending execution from last task search */
+	// 处理上一个搜索任务中待执行的请求
 	void ProcessPendingExecution();
 
 	/** apply pending tree initialization */
@@ -488,6 +494,7 @@ protected:
 	static bool IsDebuggerActive();
 
 	/** Return NodeA's relative priority in regards to NodeB */
+	// 返回NodeA对于NodeB的相对优先级
 	EBTNodeRelativePriority CalculateRelativePriority(const UBTNode* NodeA, const UBTNode* NodeB) const;
 
 	friend UBTNode;
@@ -509,6 +516,7 @@ protected:
 	// 用于告诉tickmanager，我们需要间隔ticking
 	bool bTickedOnce = false;
 	/** Predicted next DeltaTime*/
+	// 预测下一次的变化时间
 	float NextTickDeltaTime = 0.0f;
 	/** Accumulated DeltaTime if ticked more than predicted next delta time */
 	float AccumulatedTickDeltaTime = 0.0f;

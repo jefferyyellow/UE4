@@ -672,8 +672,10 @@ void UBehaviorTreeComponent::OnTreeFinished()
 	}
 }
 
+// 如果激活节点是给定节点的一个子节点就返回true
 bool UBehaviorTreeComponent::IsExecutingBranch(const UBTNode* Node, int32 ChildIndex) const
 {
+	// 找到节点包含的实例索引
 	const int32 TestInstanceIdx = FindInstanceContainingNode(Node);
 	if (!InstanceStack.IsValidIndex(TestInstanceIdx) || InstanceStack[TestInstanceIdx].ActiveNode == NULL)
 	{
@@ -681,6 +683,7 @@ bool UBehaviorTreeComponent::IsExecutingBranch(const UBTNode* Node, int32 ChildI
 	}
 
 	// is it active node or root of tree?
+	// 是否是活动节点或者树的根节点
 	const FBehaviorTreeInstance& TestInstance = InstanceStack[TestInstanceIdx];
 	if (Node == TestInstance.RootNode || Node == TestInstance.ActiveNode)
 	{
@@ -688,11 +691,13 @@ bool UBehaviorTreeComponent::IsExecutingBranch(const UBTNode* Node, int32 ChildI
 	}
 
 	// compare with index of next child
+	// 比较下一个子节点的索引
 	const uint16 ActiveExecutionIndex = TestInstance.ActiveNode->GetExecutionIndex();
 	const uint16 NextChildExecutionIndex = Node->GetParentNode()->GetChildExecutionIndex(ChildIndex + 1);
 	return (ActiveExecutionIndex >= Node->GetExecutionIndex()) && (ActiveExecutionIndex < NextChildExecutionIndex);
 }
 
+// 如果辅助节点是当前的活动节点，就返回true
 bool UBehaviorTreeComponent::IsAuxNodeActive(const UBTAuxiliaryNode* AuxNode) const
 {
 	if (AuxNode == NULL)
@@ -701,9 +706,11 @@ bool UBehaviorTreeComponent::IsAuxNodeActive(const UBTAuxiliaryNode* AuxNode) co
 	}
 
 	const uint16 AuxExecutionIndex = AuxNode->GetExecutionIndex();
+	// 遍历所有的树实例
 	for (int32 InstanceIndex = 0; InstanceIndex < InstanceStack.Num(); InstanceIndex++)
 	{
 		const FBehaviorTreeInstance& InstanceInfo = InstanceStack[InstanceIndex];
+		// 遍历树实例的激活辅助节点
 		for (const UBTAuxiliaryNode* TestAuxNode : InstanceInfo.GetActiveAuxNodes())
 		{
 			// check template version
@@ -714,6 +721,7 @@ bool UBehaviorTreeComponent::IsAuxNodeActive(const UBTAuxiliaryNode* AuxNode) co
 
 			// check instanced version
 			CA_SUPPRESS(6011);
+			// 检查实例版本，如果允许索引一致，并且节点一致，就返回true
 			if (AuxNode->IsInstanced() && TestAuxNode && TestAuxNode->GetExecutionIndex() == AuxExecutionIndex)
 			{
 				const uint8* NodeMemory = TestAuxNode->GetNodeMemory<uint8>(InstanceInfo);
@@ -730,14 +738,17 @@ bool UBehaviorTreeComponent::IsAuxNodeActive(const UBTAuxiliaryNode* AuxNode) co
 	return false;
 }
 
+// 如果辅助节点是当前的活动节点，就返回true
 bool UBehaviorTreeComponent::IsAuxNodeActive(const UBTAuxiliaryNode* AuxNodeTemplate, int32 InstanceIdx) const
 {
 	return InstanceStack.IsValidIndex(InstanceIdx) && InstanceStack[InstanceIdx].GetActiveAuxNodes().Contains(AuxNodeTemplate);
 }
 
+// 返回指定任务节点的状态
 EBTTaskStatus::Type UBehaviorTreeComponent::GetTaskStatus(const UBTTaskNode* TaskNode) const
 {
 	EBTTaskStatus::Type Status = EBTTaskStatus::Inactive;
+	// 得到任务节点对应的树实例索引
 	const int32 InstanceIdx = FindInstanceContainingNode(TaskNode);
 
 	if (InstanceStack.IsValidIndex(InstanceIdx))
@@ -746,6 +757,7 @@ EBTTaskStatus::Type UBehaviorTreeComponent::GetTaskStatus(const UBTTaskNode* Tas
 		const FBehaviorTreeInstance& InstanceInfo = InstanceStack[InstanceIdx];
 
 		// always check parallel execution first, it takes priority over ActiveNodeType
+		// 总是先检查并行任务优先，如果是并行任务，返回并行任务的状态
 		for (const FBehaviorTreeParallelTask& ParallelInfo : InstanceInfo.GetParallelTasks())
 		{
 			if (ParallelInfo.TaskNode == TaskNode ||
@@ -756,8 +768,10 @@ EBTTaskStatus::Type UBehaviorTreeComponent::GetTaskStatus(const UBTTaskNode* Tas
 			}
 		}
 
+		// 如果不是并行任务
 		if (Status == EBTTaskStatus::Inactive)
 		{
+			// 如果任务节点是活动节点
 			if (InstanceInfo.ActiveNode == TaskNode ||
 				(TaskNode->IsInstanced() && InstanceInfo.ActiveNode && InstanceInfo.ActiveNode->GetExecutionIndex() == ExecutionIndex))
 			{
@@ -772,11 +786,14 @@ EBTTaskStatus::Type UBehaviorTreeComponent::GetTaskStatus(const UBTTaskNode* Tas
 	return Status;
 }
 
+// 请求在指定分支中注销aux节点
 void UBehaviorTreeComponent::RequestUnregisterAuxNodesInBranch(const UBTCompositeNode* Node)
 {
+	// 找到树实例索引
 	const int32 InstanceIdx = FindInstanceContainingNode(Node);
 	if (InstanceIdx != INDEX_NONE)
 	{
+		// 加入等待注册的辅助接点请求中
 		PendingUnregisterAuxNodesRequests.Ranges.Emplace(
 			FBTNodeIndex(InstanceIdx, Node->GetExecutionIndex()),
 			FBTNodeIndex(InstanceIdx, Node->GetLastExecutionIndex()));
@@ -785,6 +802,7 @@ void UBehaviorTreeComponent::RequestUnregisterAuxNodesInBranch(const UBTComposit
 	}
 }
 
+// 要求执行变更：装饰节点
 void UBehaviorTreeComponent::RequestExecution(const UBTDecorator* RequestedBy)
 {
 	check(RequestedBy);
@@ -796,6 +814,10 @@ void UBehaviorTreeComponent::RequestExecution(const UBTDecorator* RequestedBy)
 	//
 	// - Both: check if active node is within inner child nodes and choose Self or LowerPri
 	//
+	//搜索范围取决于装饰器的FlowAbortMode：
+	//-LowerPri：尝试进入branch =仅搜索装饰器下的节点
+	//-Self：离开执行=从装饰器下的节点到树的末端
+	//-Both：检查活动节点是否在内部子节点内，然后选择Self或LowerPrime 
 
 	EBTFlowAbortMode::Type AbortMode = RequestedBy->GetFlowAbortMode();
 	if (AbortMode == EBTFlowAbortMode::None)
@@ -830,28 +852,34 @@ void UBehaviorTreeComponent::RequestExecution(const UBTDecorator* RequestedBy)
 
 	if (AbortMode == EBTFlowAbortMode::Both)
 	{
+		// 是否是执行的子节点
 		const bool bIsExecutingChildNodes = IsExecutingBranch(RequestedBy, RequestedBy->GetChildIndex());
 		AbortMode = bIsExecutingChildNodes ? EBTFlowAbortMode::Self : EBTFlowAbortMode::LowerPriority;
 	}
 
 	EBTNodeResult::Type ContinueResult = (AbortMode == EBTFlowAbortMode::Self) ? EBTNodeResult::Failed : EBTNodeResult::Aborted;
+	// 回到父节点执行
 	RequestExecution(RequestedBy->GetParentNode(), InstanceIdx, RequestedBy, RequestedBy->GetChildIndex(), ContinueResult);
 }
 
+// 返回NodeA对于NodeB的相对优先级
 EBTNodeRelativePriority UBehaviorTreeComponent::CalculateRelativePriority(const UBTNode* NodeA, const UBTNode* NodeB) const
 {
 	EBTNodeRelativePriority RelativePriority = EBTNodeRelativePriority::Same;
 
 	if (NodeA != NodeB)
 	{
+		// 先找到对应的树实例索引
 		const int32 InstanceIndexA = FindInstanceContainingNode(NodeA);
 		const int32 InstanceIndexB = FindInstanceContainingNode(NodeB);
+		// 同一棵树
 		if (InstanceIndexA == InstanceIndexB)
 		{
 			RelativePriority = NodeA->GetExecutionIndex() < NodeB->GetExecutionIndex() ? EBTNodeRelativePriority::Higher : EBTNodeRelativePriority::Lower;
 		}
 		else
 		{
+			// 如果树索引都合法的，索引小的优先级高
 			RelativePriority = (InstanceIndexA != INDEX_NONE && InstanceIndexB != INDEX_NONE) ? (InstanceIndexA < InstanceIndexB ? EBTNodeRelativePriority::Higher : EBTNodeRelativePriority::Lower)
 				: (InstanceIndexA != INDEX_NONE ? EBTNodeRelativePriority::Higher : EBTNodeRelativePriority::Lower);
 		}
@@ -958,6 +986,7 @@ void UBehaviorTreeComponent::ScheduleExecutionUpdate()
 	bRequestedFlowUpdate = true;
 }
 
+// 要求执行变更
 void UBehaviorTreeComponent::RequestExecution(UBTCompositeNode* RequestedOn, int32 InstanceIdx, const UBTNode* RequestedBy,
 											  int32 RequestedByChildIndex, EBTNodeResult::Type ContinueWithResult, bool bStoreForDebugger)
 {
@@ -1234,8 +1263,10 @@ void UBehaviorTreeComponent::RequestExecution(UBTCompositeNode* RequestedOn, int
 	}
 }
 
+// 应用特定列表中的更新 
 void UBehaviorTreeComponent::ApplySearchUpdates(const TArray<FBehaviorTreeSearchUpdate>& UpdateList, int32 NewNodeExecutionIndex, bool bPostUpdate)
 {
+	// 遍历所有的更新列表
 	for (int32 Index = 0; Index < UpdateList.Num(); Index++)
 	{
 		const FBehaviorTreeSearchUpdate& UpdateInfo = UpdateList[Index];
@@ -1244,23 +1275,31 @@ void UBehaviorTreeComponent::ApplySearchUpdates(const TArray<FBehaviorTreeSearch
 			continue;
 		}
 
+		// 找到更新的树实例
 		FBehaviorTreeInstance& UpdateInstance = InstanceStack[UpdateInfo.InstanceIndex];
 		int32 ParallelTaskIdx = INDEX_NONE;
 		bool bIsComponentActive = false;
 
+		// 辅助节点
 		if (UpdateInfo.AuxNode)
 		{
+			// 是否是激活的辅助节点
 			bIsComponentActive = UpdateInstance.GetActiveAuxNodes().Contains(UpdateInfo.AuxNode);
 		}
+		// 任务节点
 		else if (UpdateInfo.TaskNode)
 		{
+			// 并行任务索引
 			ParallelTaskIdx = UpdateInstance.GetParallelTasks().IndexOfByKey(UpdateInfo.TaskNode);
+			// 是否是激活的辅助节点
 			bIsComponentActive = (ParallelTaskIdx != INDEX_NONE && UpdateInstance.GetParallelTasks()[ParallelTaskIdx].Status == EBTTaskStatus::Active);
 		}
 
+		// 得到更新节点
 		const UBTNode* UpdateNode = UpdateInfo.AuxNode ? (const UBTNode*)UpdateInfo.AuxNode : (const UBTNode*)UpdateInfo.TaskNode;
 		checkSlow(UpdateNode);
 
+		// 如果是删除一个非活动节点，或者增加一个活动节点，或者是否延迟更新的状态不对，都跳过
 		if ((UpdateInfo.Mode == EBTNodeUpdateMode::Remove && !bIsComponentActive) ||
 			(UpdateInfo.Mode == EBTNodeUpdateMode::Add && (bIsComponentActive || UpdateNode->GetExecutionIndex() > NewNodeExecutionIndex)) ||
 			(UpdateInfo.bPostUpdate != bPostUpdate))
@@ -1277,6 +1316,8 @@ void UBehaviorTreeComponent::ApplySearchUpdates(const TArray<FBehaviorTreeSearch
 		{
 			// special case: service node at root of top most subtree - don't remove/re-add them when tree is in looping mode
 			// don't bother with decorators parent == root means that they are on child branches
+			// 特殊情况：服务节点位于最顶层子树的根目录下-当树处于循环模式时，请勿删除/重新添加它们
+			// 不要打扰装饰器parent == root表示它们在子分支上 
 			if (bLoopExecution && UpdateInfo.AuxNode->GetMyNode() == InstanceStack[0].RootNode &&
 				UpdateInfo.AuxNode->IsA(UBTService::StaticClass()))
 			{
@@ -1289,6 +1330,7 @@ void UBehaviorTreeComponent::ApplySearchUpdates(const TArray<FBehaviorTreeSearch
 			}
 
 			uint8* NodeMemory = (uint8*)UpdateNode->GetNodeMemory<uint8>(UpdateInstance);
+			// 更新模式来增加或者删除节点，并且调用对应的通知函数
 			if (UpdateInfo.Mode == EBTNodeUpdateMode::Remove)
 			{
 				UpdateInstance.RemoveFromActiveAuxNodes(UpdateInfo.AuxNode);
@@ -1302,12 +1344,15 @@ void UBehaviorTreeComponent::ApplySearchUpdates(const TArray<FBehaviorTreeSearch
 		}
 		else if (UpdateInfo.TaskNode)
 		{
+			// 删除任务节点
 			if (UpdateInfo.Mode == EBTNodeUpdateMode::Remove)
 			{
 				// remove all message observers from node to abort to avoid calling OnTaskFinished from AbortTask
+				// 从节点删除所有消息观察者以中止以避免从AbortTask调用OnTaskFinished 
 				UnregisterMessageObserversFrom(UpdateInfo.TaskNode);
 
 				uint8* NodeMemory = (uint8*)UpdateNode->GetNodeMemory<uint8>(UpdateInstance);
+				// 通知节点终止任务
 				EBTNodeResult::Type NodeResult = UpdateInfo.TaskNode->WrappedAbortTask(*this, NodeMemory);
 
 				UE_VLOG(GetOwner(), LogBehaviorTree, Log, TEXT("Parallel task aborted: %s (%s)"),
@@ -1315,19 +1360,23 @@ void UBehaviorTreeComponent::ApplySearchUpdates(const TArray<FBehaviorTreeSearch
 					(NodeResult == EBTNodeResult::InProgress) ? TEXT("in progress") : TEXT("instant"));
 
 				// check if task node is still valid, could've received LatentAbortFinished during AbortTask call
+				// 检查任务节点是否仍然有效，是否可以在AbortTask调用期间收到LatentAbortFinished 
 				const bool bStillValid = InstanceStack.IsValidIndex(UpdateInfo.InstanceIndex) &&
 					InstanceStack[UpdateInfo.InstanceIndex].GetParallelTasks().IsValidIndex(ParallelTaskIdx) &&
 					InstanceStack[UpdateInfo.InstanceIndex].GetParallelTasks()[ParallelTaskIdx] == UpdateInfo.TaskNode;
 				
+				// 仍然有效
 				if (bStillValid)
 				{
 					// mark as pending abort
+					// 执行结果是处理过程中
 					if (NodeResult == EBTNodeResult::InProgress)
 					{
+						// 将并行任务挂起中止
 						UpdateInstance.MarkParallelTaskAsAbortingAt(ParallelTaskIdx);
 						bWaitingForAbortingTasks = true;
 					}
-
+					// 调用任务完成
 					OnTaskFinished(UpdateInfo.TaskNode, NodeResult);
 				}
 			}
@@ -1335,7 +1384,7 @@ void UBehaviorTreeComponent::ApplySearchUpdates(const TArray<FBehaviorTreeSearch
 			{
 				UE_VLOG(GetOwner(), LogBehaviorTree, Verbose, TEXT("Parallel task: %s added to active list"),
 					*UBehaviorTreeTypes::DescribeNodeHelper(UpdateInfo.TaskNode));
-
+				// 增加并行任务
 				UpdateInstance.AddToParallelTasks(FBehaviorTreeParallelTask(UpdateInfo.TaskNode, EBTTaskStatus::Active));
 			}
 		}
@@ -1345,11 +1394,13 @@ void UBehaviorTreeComponent::ApplySearchUpdates(const TArray<FBehaviorTreeSearch
 void UBehaviorTreeComponent::ApplySearchData(UBTNode* NewActiveNode)
 {
 	// search is finalized, can't rollback anymore at this point
+	// 搜索结束，再也不能回滚到该点了
 	SearchData.RollbackInstanceIdx = INDEX_NONE;
 	SearchData.RollbackDeactivatedBranchStart = FBTNodeIndex();
 	SearchData.RollbackDeactivatedBranchEnd = FBTNodeIndex();
 
 	// send all deactivation notifies for bookkeeping
+	// 给发送所有的停用通知
 	for (int32 Idx = 0; Idx < SearchData.PendingNotifies.Num(); Idx++)
 	{
 		const FBehaviorTreeSearchUpdateNotify& NotifyInfo = SearchData.PendingNotifies[Idx];
@@ -1360,28 +1411,36 @@ void UBehaviorTreeComponent::ApplySearchData(UBTNode* NewActiveNode)
 	}
 
 	// apply changes to aux nodes and parallel tasks
+	// 应用改变到辅助接点和并行任务
 	const int32 NewNodeExecutionIndex = NewActiveNode ? NewActiveNode->GetExecutionIndex() : 0;
 
+	// 跳过来自停用分支中节点的执行请求
 	SearchData.bFilterOutRequestFromDeactivatedBranch = true;
 
+	// 应用更新
 	ApplySearchUpdates(SearchData.PendingUpdates, NewNodeExecutionIndex);
 	ApplySearchUpdates(SearchData.PendingUpdates, NewNodeExecutionIndex, true);
 	
+	// 接受来自停用分支中节点的执行请求
 	SearchData.bFilterOutRequestFromDeactivatedBranch = false;
 
 	// tick newly added aux nodes to compensate for tick-search order changes
+	// tick新添加的辅助节点来补偿tick搜索顺序更改
 	UWorld* MyWorld = GetWorld();
 	const float CurrentFrameDeltaSeconds = MyWorld ? MyWorld->GetDeltaSeconds() : 0.0f;
 
+	// 遍历等待的更新
 	for (int32 Idx = 0; Idx < SearchData.PendingUpdates.Num(); Idx++)
 	{
 		const FBehaviorTreeSearchUpdate& UpdateInfo = SearchData.PendingUpdates[Idx];
+		// 如果是新增加的
 		if (UpdateInfo.Mode == EBTNodeUpdateMode::Add && UpdateInfo.AuxNode && InstanceStack.IsValidIndex(UpdateInfo.InstanceIndex))
 		{
 			FBehaviorTreeInstance& InstanceInfo = InstanceStack[UpdateInfo.InstanceIndex];
 			uint8* NodeMemory = UpdateInfo.AuxNode->GetNodeMemory<uint8>(InstanceInfo);
 
             // We do not care about the next needed DeltaTime, it will be recalculated in the tick later.
+			// 不关心下一次需要的DeltaTime，它将稍后的tick中重新计算
 			float NextNeededDeltaTime = 0.0f;
 			UpdateInfo.AuxNode->WrappedTickNode(*this, NodeMemory, CurrentFrameDeltaSeconds, NextNeededDeltaTime);
 		}
@@ -1389,24 +1448,31 @@ void UBehaviorTreeComponent::ApplySearchData(UBTNode* NewActiveNode)
 
 	// clear update list
 	// nothing should be added during application or tick - all changes are supposed to go to ExecutionRequest accumulator first
+	// 清空更新列表
+	// 在应用程序或者tick期间任何东西都不要加入进去，所有的更改都应该先转到ExecutionRequest的累加器中去
 	SearchData.PendingUpdates.Reset();
 	SearchData.PendingNotifies.Reset();
 	SearchData.DeactivatedBranchStart = FBTNodeIndex();
 	SearchData.DeactivatedBranchEnd = FBTNodeIndex();
 }
 
+// 通过放弃搜索的方式来应用等待的节点更新要求
 void UBehaviorTreeComponent::ApplyDiscardedSearch()
 {
 	// remove everything else
+	// 删除所有的未应用的更新
 	SearchData.PendingUpdates.Reset();
 
 	// don't send deactivation notifies
+	// 清空停用通知
 	SearchData.PendingNotifies.Reset();
 }
 
+// 组件的tick
 void UBehaviorTreeComponent::TickComponent(float DeltaTime, enum ELevelTick TickType, FActorComponentTickFunction *ThisTickFunction)
 {
 	// Warn if BT asked to be ticked the next frame and did not.
+	// 如果BT要求在下一帧tick，但是没有就需要发出警告
 	if (bTickedOnce && NextTickDeltaTime == 0.0f)
 	{
 		UWorld* MyWorld = GetWorld();
@@ -1414,6 +1480,7 @@ void UBehaviorTreeComponent::TickComponent(float DeltaTime, enum ELevelTick Tick
 		{
 			const float CurrentGameTime = MyWorld->GetTimeSeconds();
 			const float CurrentDeltaTime = MyWorld->GetDeltaSeconds();
+			// 当前游戏时间 - 要求下一帧tick的游戏时间 - 两帧之间的间隔时间 > 
 			if (CurrentGameTime - LastRequestedDeltaTimeGameTime - CurrentDeltaTime > KINDA_SMALL_NUMBER)
 			{
 				UE_VLOG(GetOwner(), LogBehaviorTree, Error, TEXT("BT(%i) expected to be tick next frame, current deltatime(%f) and calculated deltatime(%f)."), GFrameCounter, CurrentDeltaTime, CurrentGameTime - LastRequestedDeltaTimeGameTime);
@@ -1423,24 +1490,31 @@ void UBehaviorTreeComponent::TickComponent(float DeltaTime, enum ELevelTick Tick
 
 	// Check if we really have reached the asked DeltaTime, 
 	// If not then accumulate it and reschedule
+	// 检查我们是否真的已经达到请求的增量时间
+	// 如果没有达到就累计它并且重新安排
 	NextTickDeltaTime -= DeltaTime;
 	if (NextTickDeltaTime > 0.0f)
 	{
 		// The TickManager is using global time to calculate delta since last ticked time. When the value is big, we can get into float precision errors compare to our calculation.
+		// TickManager正在使用全局时间来计算自上次tick时间以来的变化量。 当该值较大时，我们可以将浮点精度误差与我们的计算进行比较。 
 		if (NextTickDeltaTime > KINDA_SMALL_NUMBER)
 		{
 			UE_VLOG(GetOwner(), LogBehaviorTree, Error, TEXT("BT(%i) did not need to be tick, ask deltatime of %fs got %fs with a diff of %fs."), GFrameCounter, NextTickDeltaTime + AccumulatedTickDeltaTime + DeltaTime, DeltaTime + AccumulatedTickDeltaTime, NextTickDeltaTime);
 		}
 		AccumulatedTickDeltaTime += DeltaTime;
+		// 上面减少tick的时间
 		ScheduleNextTick(NextTickDeltaTime);
 		return;
 	}
+	// 计算tick成功的间隔时间
 	DeltaTime += AccumulatedTickDeltaTime;
+	// 累计时间置零
 	AccumulatedTickDeltaTime = 0.0f;
 
 	const bool bWasTickedOnce = bTickedOnce;
 	bTickedOnce = true;
 
+	// 是否有消息去处理
 	bool bDoneSomething = MessagesToProcess.Num() > 0;
 	Super::TickComponent(DeltaTime, TickType, ThisTickFunction);
 	SCOPE_CYCLE_COUNTER(STAT_AI_Overall);
@@ -1454,13 +1528,18 @@ void UBehaviorTreeComponent::TickComponent(float DeltaTime, enum ELevelTick Tick
 	float NextNeededDeltaTime = FLT_MAX;
 
 	// process all auxiliary nodes unregister requests
+	// 处理所有辅助接点的取消注册请求
 	bDoneSomething |= ProcessPendingUnregister();
 
 	// tick active auxiliary nodes (in execution order, before task)
 	// do it before processing execution request to give BP driven logic chance to accumulate execution requests
 	// newly added aux nodes are ticked as part of SearchData application
+	// tick激活辅助节点（按照任务前的执行顺序）
+	// 在处理执行请求之前执行此操作，以使BP驱动的逻辑有机会积累执行请求
+	// 新添加的辅助节点作为SearchData应用程序的一部分去ticked
 	for (int32 InstanceIndex = 0; InstanceIndex < InstanceStack.Num(); InstanceIndex++)
 	{
+		// tick所有激活的辅助节点
 		FBehaviorTreeInstance& InstanceInfo = InstanceStack[InstanceIndex];
 		InstanceInfo.ExecuteOnEachAuxNode([&InstanceInfo, this, &bDoneSomething, DeltaTime, &NextNeededDeltaTime](const UBTAuxiliaryNode& AuxNode)
 			{
@@ -1471,6 +1550,7 @@ void UBehaviorTreeComponent::TickComponent(float DeltaTime, enum ELevelTick Tick
 	}
 
 	bool bActiveAuxiliaryNodeDTDirty = false;
+	// 请求处理
 	if (bRequestedFlowUpdate)
 	{
 		ProcessExecutionRequest();
@@ -1481,12 +1561,14 @@ void UBehaviorTreeComponent::TickComponent(float DeltaTime, enum ELevelTick Tick
 		NextNeededDeltaTime = FLT_MAX;
 	}
 
+	//运行状态并且没有暂停
 	if (InstanceStack.Num() > 0 && bIsRunning && !bIsPaused)
 	{
 		{
 			FScopedBehaviorTreeLock ScopedLock(*this, FScopedBehaviorTreeLock::LockTick);
 
 			// tick active parallel tasks (in execution order, before task)
+			// tick所有激活的并行任务
 			for (int32 InstanceIndex = 0; InstanceIndex < InstanceStack.Num(); InstanceIndex++)
 			{
 				FBehaviorTreeInstance& InstanceInfo = InstanceStack[InstanceIndex];
@@ -1500,6 +1582,7 @@ void UBehaviorTreeComponent::TickComponent(float DeltaTime, enum ELevelTick Tick
 			}
 
 			// tick active task
+			// tick激活的任务节点
 			if (InstanceStack.IsValidIndex(ActiveInstanceIdx))
 			{
 				FBehaviorTreeInstance& ActiveInstance = InstanceStack[ActiveInstanceIdx];
@@ -1514,6 +1597,7 @@ void UBehaviorTreeComponent::TickComponent(float DeltaTime, enum ELevelTick Tick
 			}
 
 			// tick aborting task from abandoned subtree
+			// tick废弃子树的中止任务
 			if (InstanceStack.IsValidIndex(ActiveInstanceIdx + 1))
 			{
 				FBehaviorTreeInstance& LastInstance = InstanceStack.Last();
@@ -1527,6 +1611,7 @@ void UBehaviorTreeComponent::TickComponent(float DeltaTime, enum ELevelTick Tick
 			}
 		}
 
+		// 如果设置了，就在tick函数结尾处调用StopTree
 		if (bDeferredStopTree)
 		{
 			StopTree(EBTStopMode::Safe);
@@ -1535,6 +1620,7 @@ void UBehaviorTreeComponent::TickComponent(float DeltaTime, enum ELevelTick Tick
 	}
 
 	// Go through all active auxiliary nodes to calculate the next NeededDeltaTime if needed
+	// 遍历所有激活的辅助接点，计算下一个需要的NeededDeltaTime
 	if (bActiveAuxiliaryNodeDTDirty)
 	{
 		for (int32 InstanceIndex = 0; InstanceIndex < InstanceStack.Num() && NextNeededDeltaTime > 0.0f; InstanceIndex++)
@@ -1544,6 +1630,7 @@ void UBehaviorTreeComponent::TickComponent(float DeltaTime, enum ELevelTick Tick
 			{
 				uint8* NodeMemory = AuxNode->GetNodeMemory<uint8>(InstanceInfo);
 				const float NextNodeNeededDeltaTime = AuxNode->GetNextNeededDeltaTime(*this, NodeMemory);
+				// 找到最小的时间
 				if (NextNeededDeltaTime > NextNodeNeededDeltaTime)
 				{
 					NextNeededDeltaTime = NextNodeNeededDeltaTime;
@@ -1556,14 +1643,18 @@ void UBehaviorTreeComponent::TickComponent(float DeltaTime, enum ELevelTick Tick
 	{
 		UE_VLOG(GetOwner(), LogBehaviorTree, Error, TEXT("BT(%i) planned to do something but actually did not."), GFrameCounter);
 	}
+	// 安排下一次的tick时间
 	ScheduleNextTick(NextNeededDeltaTime);
 
 #if DO_ENSURE
 	// Adding code to track an problem earlier that is happening by RequestExecution from a decorator that has lower priority.
 	// The idea here is to try to rule out that the tick leaves the behavior tree is a bad state with lower priority decorators(AuxNodes).
+	// 添加代码以更早地跟踪优先级较低的装饰器发出的RequestExecution发生的问题，
+	// 此处的想法是尝试排除刻度线离开行为树是具有较低优先级装饰器（AuxNodes）的不良状态。
 	static bool bWarnOnce = false;
 	if (!bWarnOnce)
 	{
+		// 遍历所有的实例
 		for (int32 InstanceIndex = 0; InstanceIndex < InstanceStack.Num(); InstanceIndex++)
 		{
 			const FBehaviorTreeInstance& InstanceInfo = InstanceStack[InstanceIndex];
@@ -1572,9 +1663,11 @@ void UBehaviorTreeComponent::TickComponent(float DeltaTime, enum ELevelTick Tick
 				break;
 			}
 
+			// 遍历所有激活的辅助节点
 			const uint16 ActiveExecutionIdx = InstanceInfo.ActiveNode->GetExecutionIndex();
 			for (const UBTAuxiliaryNode* ActiveAuxNode : InstanceInfo.GetActiveAuxNodes())
 			{
+				// 找出比活动节点优先级低的节点
 				if (ActiveAuxNode->GetExecutionIndex() >= ActiveExecutionIdx)
 				{
 					FString ErrorMsg(FString::Printf(TEXT("%s: leaving the tick of behavior tree with a lower priority active node %s, Current Tasks : "),
@@ -1633,29 +1726,35 @@ void UBehaviorTreeComponent::ScheduleNextTick(const float NextNeededDeltaTime)
 	LastRequestedDeltaTimeGameTime = MyWorld ? MyWorld->GetTimeSeconds() : 0.0f;
 }
 
+// 处理执行流
 void UBehaviorTreeComponent::ProcessExecutionRequest()
 {
 	bRequestedFlowUpdate = false;
+	// 组件注册检查和激活实例索引是否合法检查
 	if (!IsRegistered() || !InstanceStack.IsValidIndex(ActiveInstanceIdx))
 	{
 		// it shouldn't be called, component is no longer valid
 		return;
 	}
 
+	// 是否已经暂停
 	if (bIsPaused)
 	{
 		UE_VLOG(GetOwner(), LogBehaviorTree, Verbose, TEXT("Ignoring ProcessExecutionRequest call due to BTComponent still being paused"));
 		return;
 	}
 
+	// 或者等待中止的任务
 	if (bWaitingForAbortingTasks)
 	{
 		UE_VLOG(GetOwner(), LogBehaviorTree, Verbose, TEXT("Ignoring ProcessExecutionRequest call, aborting task must finish first"));
 		return;
 	}
 
+	// 等待执行的请求
 	if (PendingExecution.IsSet())
 	{
+		// 处理上一个搜索任务中待执行的请求
 		ProcessPendingExecution();
 		return;
 	}
@@ -1666,6 +1765,7 @@ void UBehaviorTreeComponent::ProcessExecutionRequest()
 	SearchData.RollbackDeactivatedBranchStart = SearchData.DeactivatedBranchStart;
 	SearchData.RollbackDeactivatedBranchEnd = SearchData.DeactivatedBranchEnd;
 
+	// 节点结果
 	EBTNodeResult::Type NodeResult = ExecutionRequest.ContinueWithResult;
 	UBTTaskNode* NextTask = NULL;
 
@@ -1680,12 +1780,15 @@ void UBehaviorTreeComponent::ProcessExecutionRequest()
 #endif
 
 		// copy current memory in case we need to rollback search
+		// 将当前实例的内存拷贝到持久化内存，以防我们需要回滚搜索 
 		CopyInstanceMemoryToPersistent();
 
 		// deactivate up to ExecuteNode
+		// 停用执行节点
 		if (InstanceStack[ActiveInstanceIdx].ActiveNode != ExecutionRequest.ExecuteNode)
 		{
 			int32 LastDeactivatedChildIndex = INDEX_NONE;
+			// 停用激活节点到执行节点的所有中间节点
 			const bool bDeactivated = DeactivateUpTo(ExecutionRequest.ExecuteNode, ExecutionRequest.ExecuteInstanceIdx, NodeResult, LastDeactivatedChildIndex);
 			if (!bDeactivated)
 			{
@@ -1702,9 +1805,11 @@ void UBehaviorTreeComponent::ProcessExecutionRequest()
 			else if (LastDeactivatedChildIndex != INDEX_NONE)
 			{
 				// Calculating/expanding the deactivated branch for filtering execution request while applying changes.
+				// 计算/扩展停用的分支，以在应用更改时过滤执行请求。
 				FBTNodeIndex NewDeactivatedBranchStart(ExecutionRequest.ExecuteInstanceIdx, ExecutionRequest.ExecuteNode->GetChildExecutionIndex(LastDeactivatedChildIndex, EBTChildIndex::FirstNode));
 				FBTNodeIndex NewDeactivatedBranchEnd(ExecutionRequest.ExecuteInstanceIdx, ExecutionRequest.ExecuteNode->GetChildExecutionIndex(LastDeactivatedChildIndex + 1, EBTChildIndex::FirstNode));
 
+				// 取优先级高的
 				if (NewDeactivatedBranchStart.TakesPriorityOver(SearchData.DeactivatedBranchStart))
 				{
 					SearchData.DeactivatedBranchStart = NewDeactivatedBranchStart;
@@ -1719,9 +1824,11 @@ void UBehaviorTreeComponent::ProcessExecutionRequest()
 		SearchData.AssignSearchId();
 		SearchData.bPostponeSearch = false;
 		SearchData.bSearchInProgress = true;
+		// 设置当前执行节点为搜索根节点
 		SearchData.SearchRootNode = FBTNodeIndex(ExecutionRequest.ExecuteInstanceIdx, ExecutionRequest.ExecuteNode->GetExecutionIndex());
 
 		// activate root node if needed (can't be handled by parent composite...)
+		// 如果激活的节点为空，设置为根节点
 		if (ActiveInstance.ActiveNode == NULL)
 		{
 			ActiveInstance.ActiveNode = InstanceStack[ActiveInstanceIdx].RootNode;
@@ -1730,6 +1837,7 @@ void UBehaviorTreeComponent::ProcessExecutionRequest()
 		}
 
 		// additional operations for restarting:
+		// 重新启动的其他操作：
 		if (!ExecutionRequest.bTryNextChild)
 		{
 			// mark all decorators less important than current search start node for removal
@@ -1902,6 +2010,7 @@ void UBehaviorTreeComponent::ProcessExecutionRequest()
 	}
 }
 
+// 处理上一个搜索任务中待执行的请求
 void UBehaviorTreeComponent::ProcessPendingExecution()
 {
 	// can't continue if current task is still aborting
@@ -1996,6 +2105,7 @@ void UBehaviorTreeComponent::RollbackSearchChanges()
 	}
 }
 
+// 停用所有的节点一直到requested那个
 bool UBehaviorTreeComponent::DeactivateUpTo(UBTCompositeNode* Node, uint16 NodeInstanceIdx, EBTNodeResult::Type& NodeResult, int32& OutLastDeactivatedChildIndex)
 {
 	UBTNode* DeactivatedChild = InstanceStack[ActiveInstanceIdx].ActiveNode;
@@ -2004,25 +2114,30 @@ bool UBehaviorTreeComponent::DeactivateUpTo(UBTCompositeNode* Node, uint16 NodeI
 	if (DeactivatedChild == NULL && ActiveInstanceIdx > NodeInstanceIdx)
 	{
 		// use tree's root node if instance didn't activated itself yet
+		// 如果树实例没有激活，那就使用树的根节点
 		DeactivatedChild = InstanceStack[ActiveInstanceIdx].RootNode;
 		bDeactivateRoot = false;
 	}
 
 	while (DeactivatedChild)
 	{
+		// 得到父节点
 		UBTCompositeNode* NotifyParent = DeactivatedChild->GetParentNode();
 		if (NotifyParent)
 		{
 			OutLastDeactivatedChildIndex = NotifyParent->GetChildIndex(SearchData, *DeactivatedChild);
+			// 停用子节点
 			NotifyParent->OnChildDeactivation(SearchData, OutLastDeactivatedChildIndex, NodeResult);
 
 			BT_SEARCHLOG(SearchData, Verbose, TEXT("Deactivate node: %s"), *UBehaviorTreeTypes::DescribeNodeHelper(DeactivatedChild));
 			StoreDebuggerSearchStep(DeactivatedChild, ActiveInstanceIdx, NodeResult);
 			DeactivatedChild = NotifyParent;
 		}
+		// 父节点为空了，表示已经到子树的根节点了
 		else
 		{
 			// special case for leaving instance: deactivate root manually
+			// 离开实例的特殊情况：手动停用根节点
 			if (bDeactivateRoot)
 			{
 				InstanceStack[ActiveInstanceIdx].RootNode->OnNodeDeactivation(SearchData, NodeResult);
@@ -2033,9 +2148,11 @@ bool UBehaviorTreeComponent::DeactivateUpTo(UBTCompositeNode* Node, uint16 NodeI
 				*UBehaviorTreeTypes::DescribeNodeHelper(InstanceStack[ActiveInstanceIdx].RootNode));
 
 			// clear flag, it's valid only for newest instance
+			// 清除标记，它只对最近的实例有效
 			bDeactivateRoot = true;
 
 			// shouldn't happen, but it's better to have built in failsafe just in case
+			// 应该不会发生，但是最好内置故障安全功能，以防万一 
 			if (ActiveInstanceIdx == 0)
 			{
 				BT_SEARCHLOG(SearchData, Error, TEXT("Execution path does NOT contain common parent node, restarting tree! AI:%s"),
@@ -2046,12 +2163,13 @@ bool UBehaviorTreeComponent::DeactivateUpTo(UBTCompositeNode* Node, uint16 NodeI
 			}
 
 			// store notify for later use if search is not reverted
+			// 如果未回滚搜索，则存储通知以供以后使用
 			SearchData.PendingNotifies.Add(FBehaviorTreeSearchUpdateNotify(ActiveInstanceIdx, NodeResult));
 
 			ActiveInstanceIdx--;
 			DeactivatedChild = InstanceStack[ActiveInstanceIdx].ActiveNode;
 		}
-
+		// 找到对应的节点，跳出循环
 		if (DeactivatedChild == Node)
 		{
 			break;
