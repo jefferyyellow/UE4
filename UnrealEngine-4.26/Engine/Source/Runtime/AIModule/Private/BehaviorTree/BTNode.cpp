@@ -28,6 +28,7 @@ UBTNode::UBTNode(const FObjectInitializer& ObjectInitializer) : Super(ObjectInit
 #endif
 }
 
+// 得到当前的World
 UWorld* UBTNode::GetWorld() const
 {
 	if (GetOuter() == nullptr)
@@ -95,6 +96,7 @@ void UBTNode::InitializeInSubtree(UBehaviorTreeComponent& OwnerComp, uint8* Node
 		// 复合节点无法被实例化！
 		check(IsA(UBTCompositeNode::StaticClass()) == false);
 
+		// 节点不存在，需要创建
 		UBTNode* NodeInstance = OwnerComp.NodeInstances.IsValidIndex(NextInstancedIndex) ? OwnerComp.NodeInstances[NextInstancedIndex] : NULL;
 		if (NodeInstance == NULL)
 		{
@@ -164,6 +166,7 @@ uint16 UBTNode::GetInstanceMemorySize() const
 	return 0;
 }
 
+// 得到专用内存的大小
 uint16 UBTNode::GetSpecialMemorySize() const
 {
 	return bCreateNodeInstance ? sizeof(FBTInstancedNodeMemory) : 0;

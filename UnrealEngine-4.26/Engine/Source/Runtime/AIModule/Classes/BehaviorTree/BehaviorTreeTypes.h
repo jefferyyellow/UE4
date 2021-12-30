@@ -66,7 +66,7 @@ namespace BTSpecialChild
 {
 	const int32 NotInitialized = -1;	// special value for child indices: needs to be initialized
 	const int32 ReturnToParent = -2;	// special value for child indices: return to parent node
-	
+	// 辅助节点子索引的特殊值：一个复合节点拥有，而不是一个任务节点
 	const uint8 OwnedByComposite = MAX_uint8;	// special value for aux node's child index: owned by composite node instead of a task
 }
 

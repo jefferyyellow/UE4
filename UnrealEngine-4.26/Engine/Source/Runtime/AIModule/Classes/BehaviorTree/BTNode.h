@@ -37,7 +37,7 @@ UCLASS(Abstract,config=Game)
 class AIMODULE_API UBTNode : public UObject, public IGameplayTaskOwnerInterface
 {
 	GENERATED_UCLASS_BODY()
-	// 
+	// 得到当前的World
 	virtual UWorld* GetWorld() const override;
 
 	/** fill in data about tree structure */
@@ -235,7 +235,7 @@ private:
 #endif
 
 	/** depth first index (execution order) */
-	// 度优先索引（执行顺序）
+	// 深度优先索引（执行顺序）
 	uint16 ExecutionIndex;
 
 	/** instance memory offset */
@@ -363,7 +363,7 @@ T* UBTNode::CastInstanceNodeMemory(uint8* NodeMemory) const
 	checkf(sizeof(T) <= GetInstanceMemorySize(), TEXT("Requesting type of %zu bytes but GetInstanceMemorySize returns %u. Make sure GetInstanceMemorySize is implemented properly in %s class hierarchy."), sizeof(T), GetInstanceMemorySize(), *GetFName().ToString());
 	return reinterpret_cast<T*>(NodeMemory);
 }
-
+// 得到专门的内存
 template<typename T>
 T* UBTNode::GetSpecialNodeMemory(uint8* NodeMemory) const
 {

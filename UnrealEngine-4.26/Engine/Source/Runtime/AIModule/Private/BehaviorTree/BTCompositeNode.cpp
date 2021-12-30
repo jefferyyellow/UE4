@@ -30,19 +30,25 @@ void UBTCompositeNode::InitializeComposite(uint16 InLastExecutionIndex)
 	LastExecutionIndex = InLastExecutionIndex;
 }
 
+// 查找下一个执行的子分支
 int32 UBTCompositeNode::FindChildToExecute(FBehaviorTreeSearchData& SearchData, EBTNodeResult::Type& LastResult) const
 {
 	FBTCompositeMemory* NodeMemory = GetNodeMemory<FBTCompositeMemory>(SearchData);
+	// 如果没有子节点，或者所有的子节点都不能运行，则返回父节点
 	int32 RetIdx = BTSpecialChild::ReturnToParent;
 
 	if (Children.Num())
 	{
+		// 找到下一个子节点的索引
 		int32 ChildIdx = GetNextChild(SearchData, NodeMemory->CurrentChild, LastResult);
+		// 遍历子节点
 		while (Children.IsValidIndex(ChildIdx) && !SearchData.bPostponeSearch)
 		{
 			// check decorators
+			// 检查装饰器
 			if (DoDecoratorsAllowExecution(SearchData.OwnerComp, SearchData.OwnerComp.ActiveInstanceIdx, ChildIdx))
 			{
+				// 传递搜索数据给子节点前调用
 				OnChildActivation(SearchData, ChildIdx);
 				RetIdx = ChildIdx;
 				break;
@@ -54,10 +60,11 @@ int32 UBTCompositeNode::FindChildToExecute(FBehaviorTreeSearchData& SearchData, 
 				const bool bCanNotify = !bUseDecoratorsFailedActivationCheck || CanNotifyDecoratorsOnFailedActivation(SearchData, ChildIdx, LastResult);
 				if (bCanNotify)
 				{
+					// 遍历给定子节点上装饰器并且通知他们激活失败
 					NotifyDecoratorsOnFailedActivation(SearchData, ChildIdx, LastResult);
 				}
 			}
-
+			// 找到下一个子节点的索引
 			ChildIdx = GetNextChild(SearchData, ChildIdx, LastResult);
 		}
 	}
@@ -65,12 +72,15 @@ int32 UBTCompositeNode::FindChildToExecute(FBehaviorTreeSearchData& SearchData, 
 	return RetIdx;
 }
 
+// 得到子节点的索引（处理子树）
 int32 UBTCompositeNode::GetChildIndex(FBehaviorTreeSearchData& SearchData, const UBTNode& ChildNode) const
 {
+	// ChildNode的父节点不是当前节点
 	if (ChildNode.GetParentNode() != this)
 	{
 		FBTCompositeMemory* NodeMemory = GetNodeMemory<FBTCompositeMemory>(SearchData);
-		return NodeMemory->CurrentChild;		
+		// 返回ChildNode的当前子节点
+		return NodeMemory->CurrentChild;
 	}
 
 	return GetChildIndex(ChildNode);
@@ -96,6 +106,7 @@ void UBTCompositeNode::OnChildActivation(FBehaviorTreeSearchData& SearchData, co
 	OnChildActivation(SearchData, GetChildIndex(SearchData, ChildNode));
 }
 
+// 传递搜索数据给子节点前调用
 void UBTCompositeNode::OnChildActivation(FBehaviorTreeSearchData& SearchData, int32 ChildIndex) const
 {
 	const FBTCompositeChild& ChildInfo = Children[ChildIndex];
@@ -103,9 +114,11 @@ void UBTCompositeNode::OnChildActivation(FBehaviorTreeSearchData& SearchData, in
 
 	// pass to decorators before changing current child in node memory
 	// so they can access previously executed one if needed
+	// 在更改节点内存中的当前子节点之前传递给装饰器，以便他们可以在需要时访问先前执行的那个
 	const bool bCanNotify = !bUseDecoratorsActivationCheck || CanNotifyDecoratorsOnActivation(SearchData, ChildIndex);
 	if (bCanNotify)
 	{
+		// 遍历给定子节点上装饰器并且通知他们激活
 		NotifyDecoratorsOnActivation(SearchData, ChildIndex);
 	}
 
@@ -113,6 +126,7 @@ void UBTCompositeNode::OnChildActivation(FBehaviorTreeSearchData& SearchData, in
 	// use UBehaviorTreeComponent::ExecuteTask instead
 
 	// pass to child composite
+	// 传递给子符合节点
 	if (ChildInfo.ChildComposite)
 	{
 		ChildInfo.ChildComposite->OnNodeActivation(SearchData);
@@ -122,16 +136,19 @@ void UBTCompositeNode::OnChildActivation(FBehaviorTreeSearchData& SearchData, in
 	NodeMemory->CurrentChild = ChildIndex;
 }
 
+// 子节点搜索结束后调用
 void UBTCompositeNode::OnChildDeactivation(FBehaviorTreeSearchData& SearchData, const UBTNode& ChildNode, EBTNodeResult::Type& NodeResult) const
 {
 	OnChildDeactivation(SearchData, GetChildIndex(SearchData, ChildNode), NodeResult);
 }
 
+// 子节点搜索结束后调用
 void UBTCompositeNode::OnChildDeactivation(FBehaviorTreeSearchData& SearchData, int32 ChildIndex, EBTNodeResult::Type& NodeResult) const
 {
 	const FBTCompositeChild& ChildInfo = Children[ChildIndex];
 
 	// pass to task services
+	// 传递给任务的服务器节点
 	if (ChildInfo.ChildTask)
 	{
 		for (int32 ServiceIndex = 0; ServiceIndex < ChildInfo.ChildTask->Services.Num(); ServiceIndex++)
@@ -140,6 +157,7 @@ void UBTCompositeNode::OnChildDeactivation(FBehaviorTreeSearchData& SearchData, 
 		}
 	}
 	// pass to child composite
+	// 传递给子复合节点
 	else if (ChildInfo.ChildComposite)
 	{
 		ChildInfo.ChildComposite->OnNodeDeactivation(SearchData, NodeResult);
@@ -147,6 +165,8 @@ void UBTCompositeNode::OnChildDeactivation(FBehaviorTreeSearchData& SearchData, 
 
 	// pass to decorators after composite is updated (so far only simple parallel uses it)
 	// to have them working on correct result + they must be able to modify it if requested (e.g. force success)
+	// 在复合节点更新后传递给装饰节点（目前为止只有简单的并行节点使用它）
+	// 要让他们处理正确的结果，他们必须能够根据要求修改结果（例如强制成功）
 	const bool bCanNotify = !bUseDecoratorsDeactivationCheck || CanNotifyDecoratorsOnDeactivation(SearchData, ChildIndex, NodeResult);
 	if (bCanNotify)
 	{
@@ -154,6 +174,7 @@ void UBTCompositeNode::OnChildDeactivation(FBehaviorTreeSearchData& SearchData, 
 	}
 }
 
+// 当开始进入该节点时调用
 void UBTCompositeNode::OnNodeActivation(FBehaviorTreeSearchData& SearchData) const
 {
 	OnNodeRestart(SearchData);
@@ -163,16 +184,20 @@ void UBTCompositeNode::OnNodeActivation(FBehaviorTreeSearchData& SearchData) con
 		NotifyNodeActivation(SearchData);
 	}
 
+	// 遍历所以的服务节点
 	for (int32 ServiceIndex = 0; ServiceIndex < Services.Num(); ServiceIndex++)
 	{
 		// add services when execution flow enters this composite
+		// 当执行流进入这个组合时添加服务
 		SearchData.AddUniqueUpdate(FBehaviorTreeSearchUpdate(Services[ServiceIndex], SearchData.OwnerComp.GetActiveInstanceIdx(), EBTNodeUpdateMode::Add));
 
 		// give services chance to perform initial tick before searching further
+		// 在进一步搜索之前让服务有机会执行初始tick
 		Services[ServiceIndex]->NotifyParentActivation(SearchData);
 	}
 }
 
+// 当搜索离开该节点时调用
 void UBTCompositeNode::OnNodeDeactivation(FBehaviorTreeSearchData& SearchData, EBTNodeResult::Type& NodeResult) const
 {
 	if (bUseNodeDeactivationNotify)
@@ -181,12 +206,14 @@ void UBTCompositeNode::OnNodeDeactivation(FBehaviorTreeSearchData& SearchData, E
 	}
 
 	// remove all services if execution flow leaves this composite
+	// 如果执行流离开该复合节点，删除所有的服务
 	for (int32 ServiceIndex = 0; ServiceIndex < Services.Num(); ServiceIndex++)
 	{
 		SearchData.AddUniqueUpdate(FBehaviorTreeSearchUpdate(Services[ServiceIndex], SearchData.OwnerComp.GetActiveInstanceIdx(), EBTNodeUpdateMode::Remove));
 	}
 
 	// optional: remove all decorators if execution flow leaves this composite
+	// 可选：如果执行流离开改复合节点，删除所有的装饰器
 	if (bApplyDecoratorScope)
 	{
 		const uint16 InstanceIdx = SearchData.OwnerComp.GetActiveInstanceIdx();
@@ -196,6 +223,7 @@ void UBTCompositeNode::OnNodeDeactivation(FBehaviorTreeSearchData& SearchData, E
 		SearchData.OwnerComp.UnregisterAuxNodesInRange(FromIndex, ToIndex);
 
 		// remove all pending updates "Add"
+		// 删除所有没有落地的Add更新
 		for (int32 Idx = SearchData.PendingUpdates.Num() - 1; Idx >= 0; Idx--)
 		{
 			const FBehaviorTreeSearchUpdate& UpdateInfo = SearchData.PendingUpdates[Idx];
@@ -216,6 +244,7 @@ void UBTCompositeNode::OnNodeDeactivation(FBehaviorTreeSearchData& SearchData, E
 	}
 }
 
+// 当搜索需要重新激活此节点时调用
 void UBTCompositeNode::OnNodeRestart(FBehaviorTreeSearchData& SearchData) const
 {
 	FBTCompositeMemory* NodeMemory = GetNodeMemory<FBTCompositeMemory>(SearchData);
@@ -223,14 +252,16 @@ void UBTCompositeNode::OnNodeRestart(FBehaviorTreeSearchData& SearchData) const
 	NodeMemory->OverrideChild = BTSpecialChild::NotInitialized;
 }
 
+// 在激活时通知装饰器
 void UBTCompositeNode::NotifyDecoratorsOnActivation(FBehaviorTreeSearchData& SearchData, int32 ChildIdx) const
 {
 	const FBTCompositeChild& ChildInfo = Children[ChildIdx];
+	// 遍历子节点的装饰器
 	for (int32 DecoratorIndex = 0; DecoratorIndex < ChildInfo.Decorators.Num(); DecoratorIndex++)
 	{
 		const UBTDecorator* DecoratorOb = ChildInfo.Decorators[DecoratorIndex];
 		DecoratorOb->WrappedOnNodeActivation(SearchData);
-
+		// 装饰器的打断模式
 		switch (DecoratorOb->GetFlowAbortMode())
 		{
 			case EBTFlowAbortMode::LowerPriority:
@@ -248,6 +279,7 @@ void UBTCompositeNode::NotifyDecoratorsOnActivation(FBehaviorTreeSearchData& Sea
 	}
 }
 
+// 遍历给定子节点上装饰器并且通知他们停用
 void UBTCompositeNode::NotifyDecoratorsOnDeactivation(FBehaviorTreeSearchData& SearchData, int32 ChildIdx, EBTNodeResult::Type& NodeResult) const
 {
 	const FBTCompositeChild& ChildInfo = Children[ChildIdx];
@@ -256,6 +288,7 @@ void UBTCompositeNode::NotifyDecoratorsOnDeactivation(FBehaviorTreeSearchData& S
 		// simple notify when aborting execution:
 		// - search update will be collected separately (UBehaviorTreeComponent::UnregisterAuxNodesUpTo)
 		// - can't modify result in OnNodeProcessed
+		// 如果是中止执行，只是简单通知
 		for (int32 DecoratorIndex = 0; DecoratorIndex < ChildInfo.Decorators.Num(); DecoratorIndex++)
 		{
 			const UBTDecorator* DecoratorOb = ChildInfo.Decorators[DecoratorIndex];
@@ -265,6 +298,7 @@ void UBTCompositeNode::NotifyDecoratorsOnDeactivation(FBehaviorTreeSearchData& S
 	else
 	{
 		// regular execution flow
+		// 正常执行流程
 		for (int32 DecoratorIndex = 0; DecoratorIndex < ChildInfo.Decorators.Num(); DecoratorIndex++)
 		{
 			const UBTDecorator* DecoratorOb = ChildInfo.Decorators[DecoratorIndex];
@@ -272,25 +306,29 @@ void UBTCompositeNode::NotifyDecoratorsOnDeactivation(FBehaviorTreeSearchData& S
 			DecoratorOb->WrappedOnNodeDeactivation(SearchData, NodeResult);
 
 			// leaving child branch: 
+			// 离开子分支
 			if (DecoratorOb->GetFlowAbortMode() == EBTFlowAbortMode::Self)
 			{
 				// - observers with mode "Self" are now out of scope, remove them
+				// 模式为“Self”的观察者现在超出范围，删除它们
 				SearchData.AddUniqueUpdate(FBehaviorTreeSearchUpdate(DecoratorOb, SearchData.OwnerComp.GetActiveInstanceIdx(), EBTNodeUpdateMode::Remove));
 			}
 			else if (DecoratorOb->GetFlowAbortMode() == EBTFlowAbortMode::LowerPriority)
 			{
 				// - observers with mode "Lower Priority" will try to reactivate themselves ("Both" is not removed on node activation)
+				// 模式为“低优先级”的观察者将尝试重新激活自己（节点激活时不会删除“两者”）
 				SearchData.AddUniqueUpdate(FBehaviorTreeSearchUpdate(DecoratorOb, SearchData.OwnerComp.GetActiveInstanceIdx(), EBTNodeUpdateMode::Add));
 			}
 		}
 	}
 }
 
+// 遍历给定子节点上装饰器并且通知他们激活失败
 void UBTCompositeNode::NotifyDecoratorsOnFailedActivation(FBehaviorTreeSearchData& SearchData, int32 ChildIdx, EBTNodeResult::Type& NodeResult) const
 {
 	const FBTCompositeChild& ChildInfo = Children[ChildIdx];
 	const uint16 ActiveInstanceIdx = SearchData.OwnerComp.GetActiveInstanceIdx();
-
+	// 遍历子节点的装饰节点
 	for (int32 DecoratorIndex = 0; DecoratorIndex < ChildInfo.Decorators.Num(); DecoratorIndex++)
 	{
 		const UBTDecorator* DecoratorOb = ChildInfo.Decorators[DecoratorIndex];
@@ -318,6 +356,7 @@ void UBTCompositeNode::NotifyNodeDeactivation(FBehaviorTreeSearchData& SearchDat
 {
 }
 
+// 任务执行开始的通知
 void UBTCompositeNode::ConditionalNotifyChildExecution(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory, const UBTNode& ChildNode, EBTNodeResult::Type& NodeResult) const
 {
 	if (bUseChildExecutionNotify)
@@ -326,6 +365,7 @@ void UBTCompositeNode::ConditionalNotifyChildExecution(UBehaviorTreeComponent& O
 		{
 			if (Children[ChildIndex].ChildComposite == &ChildNode || Children[ChildIndex].ChildTask == &ChildNode)
 			{
+				// 通知子节点执行
 				NotifyChildExecution(OwnerComp, NodeMemory, ChildIndex, NodeResult);
 				break;
 			}
@@ -333,6 +373,7 @@ void UBTCompositeNode::ConditionalNotifyChildExecution(UBehaviorTreeComponent& O
 	}
 }
 
+// 是否是逻辑操作
 static bool IsLogicOp(const FBTDecoratorLogic& Info)
 {
 	return (Info.Operation != EBTDecoratorLogic::Test) && (Info.Operation != EBTDecoratorLogic::Invalid);
@@ -493,6 +534,7 @@ bool UBTCompositeNode::DoDecoratorsAllowExecution(UBehaviorTreeComponent& OwnerC
 		for (int32 OperationIndex = 0; OperationIndex < ChildInfo.DecoratorOps.Num(); OperationIndex++)
 		{
 			const FBTDecoratorLogic& DecoratorOp = ChildInfo.DecoratorOps[OperationIndex];
+			// 如果是逻辑操作，先入栈
 			if (IsLogicOp(DecoratorOp))
 			{
 				OperationStack.Add(FOperationStackInfo(DecoratorOp));
@@ -500,6 +542,7 @@ bool UBTCompositeNode::DoDecoratorsAllowExecution(UBehaviorTreeComponent& OwnerC
 				UE_VLOG(OwnerComp.GetOwner(), LogBehaviorTree, Verbose, TEXT("%spushed %s:%d"), *Indent,
 					*DescribeLogicOp(DecoratorOp.Operation), DecoratorOp.Number);
 			}
+			// 如果是测试操作
 			else if (DecoratorOp.Operation == EBTDecoratorLogic::Test)
 			{
 				const bool bHasOverride = OperationStack.Num() ? OperationStack.Last().bHasForcedResult : false;
@@ -511,14 +554,14 @@ bool UBTCompositeNode::DoDecoratorsAllowExecution(UBehaviorTreeComponent& OwnerC
 					bShouldStoreNodeIndex = false;
 					NodeDecoratorIdx = DecoratorOp.Number;
 				}
-
+				// 测试装饰器
 				UBTDecorator* TestDecorator = ChildInfo.Decorators[DecoratorOp.Number];
 				const bool bIsAllowed = bHasOverride ? bCurrentOverride : TestDecorator->WrappedCanExecute(OwnerComp, TestDecorator->GetNodeMemory<uint8>(MyInstance));
 				UE_VLOG(OwnerComp.GetOwner(), LogBehaviorTree, Verbose, TEXT("%s%s %s: %s"), *Indent,
 					bHasOverride ? TEXT("skipping") : TEXT("testing"),
 					*UBehaviorTreeTypes::DescribeNodeHelper(TestDecorator),
 					bIsAllowed ? TEXT("allowed") : TEXT("forbidden"));
-
+				// 更新操作栈
 				bResult = UpdateOperationStack(OwnerComp, Indent, OperationStack, bIsAllowed, FailedDecoratorIdx, NodeDecoratorIdx, bShouldStoreNodeIndex);
 				if (OperationStack.Num() == 0)
 				{
@@ -535,12 +578,14 @@ bool UBTCompositeNode::DoDecoratorsAllowExecution(UBehaviorTreeComponent& OwnerC
 	return bResult;
 }
 
+// 查找包含指定节点索引的分支
 int32 UBTCompositeNode::GetMatchingChildIndex(int32 ActiveInstanceIdx, FBTNodeIndex& NodeIdx) const
 {
 	const int32 OutsideRange = BTSpecialChild::ReturnToParent;
 	const int32 UnlimitedRange = Children.Num() - 1;
 
 	// search ends at the same instance level: use execution index to determine branch containing node index
+	// 
 	if (ActiveInstanceIdx == NodeIdx.InstanceIndex)
 	{
 		// is composite even in range of search?
@@ -564,14 +609,17 @@ int32 UBTCompositeNode::GetMatchingChildIndex(int32 ActiveInstanceIdx, FBTNodeIn
 
 	// search ends at higher level: allow every node
 	// search ends at lower level: outside allowed range
+	// 搜索在更高级别结束：允许每个节点
+	// 搜索在较低级别结束：超出允许范围
 	return (ActiveInstanceIdx > NodeIdx.InstanceIndex) ? UnlimitedRange : OutsideRange;
 }
-
+// 获取给定分支的第一个执行索引
 uint16 UBTCompositeNode::GetBranchExecutionIndex(uint16 NodeInBranchIdx) const
 {
 	uint16 PrevBranchStartIdx = GetExecutionIndex();
 	for (int32 ChildIndex = 0; ChildIndex < Children.Num(); ChildIndex++)
 	{
+		// 遍历搜索分支索引
 		const uint16 BranchStartIdx = GetChildExecutionIndex(ChildIndex, EBTChildIndex::FirstNode);
 		if (BranchStartIdx > NodeInBranchIdx)
 		{
@@ -584,6 +632,7 @@ uint16 UBTCompositeNode::GetBranchExecutionIndex(uint16 NodeInBranchIdx) const
 	return PrevBranchStartIdx;
 }
 
+// 得到下一个处理的子节点并且将它保存在CurrentChild
 int32 UBTCompositeNode::GetNextChild(FBehaviorTreeSearchData& SearchData, int32 LastChildIdx, EBTNodeResult::Type LastResult) const
 {
 	FBTCompositeMemory* NodeMemory = GetNodeMemory<FBTCompositeMemory>(SearchData);
@@ -591,17 +640,20 @@ int32 UBTCompositeNode::GetNextChild(FBehaviorTreeSearchData& SearchData, int32 
 	uint16 ActiveInstanceIdx = SearchData.OwnerComp.GetActiveInstanceIdx();
 
 	// newly activated node, search range not reached yet: select search branch for decorator test
+	// 新激活的节点，尚未达到搜索范围：选择装饰器测试的搜索分支
 	if (LastChildIdx == BTSpecialChild::NotInitialized && SearchData.SearchStart.IsSet() &&
 		FBTNodeIndex(ActiveInstanceIdx, GetExecutionIndex()).TakesPriorityOver(SearchData.SearchStart))
 	{
 		NextChildIndex = GetMatchingChildIndex(ActiveInstanceIdx, SearchData.SearchStart);
 	}
+	// 
 	else if (NodeMemory->OverrideChild != BTSpecialChild::NotInitialized && !SearchData.OwnerComp.IsRestartPending())
 	{
 		NextChildIndex = NodeMemory->OverrideChild;
 		NodeMemory->OverrideChild = BTSpecialChild::NotInitialized;
 	}
 	// or use composite's logic
+	// 或者使用复合节点逻辑
 	else 
 	{
 		NextChildIndex = GetNextChildHandler(SearchData, LastChildIdx, LastResult);
@@ -624,6 +676,7 @@ void UBTCompositeNode::RequestDelayedExecution(UBehaviorTreeComponent& OwnerComp
 	OwnerComp.RequestExecution(LastResult);
 }
 
+// 返回子节点的执行索引
 uint16 UBTCompositeNode::GetChildExecutionIndex(int32 Index, EBTChildIndex ChildMode) const
 {
 	const UBTNode* ChildNode = GetChildNode(Index);
@@ -669,6 +722,7 @@ bool UBTCompositeNode::CanNotifyDecoratorsOnFailedActivation(FBehaviorTreeSearch
 	return true;
 }
 
+// 收集所有运行时参数的描述
 void UBTCompositeNode::DescribeRuntimeValues(const UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory, EBTDescriptionVerbosity::Type Verbosity, TArray<FString>& Values) const
 {
 	Super::DescribeRuntimeValues(OwnerComp, NodeMemory, Verbosity, Values);

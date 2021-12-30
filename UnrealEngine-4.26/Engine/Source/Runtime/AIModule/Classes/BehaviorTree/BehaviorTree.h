@@ -24,6 +24,7 @@ class AIMODULE_API UBehaviorTree : public UObject, public IBlackboardAssetProvid
 #if WITH_EDITORONLY_DATA
 
 	/** Graph for Behavior Tree */
+	// 行为树的图
 	UPROPERTY()
 	class UEdGraph*	BTGraph;
 

@@ -14,6 +14,7 @@ UBTService::UBTService(const FObjectInitializer& ObjectInitializer) : Super(Obje
 	RandomDeviation = 0.1f;
 }
 
+// tick节点，更新下一个tick间隔
 void UBTService::TickNode(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory, float DeltaSeconds)
 {
 	ScheduleNextTick(OwnerComp, NodeMemory);
@@ -28,6 +29,7 @@ void UBTService::NotifyParentActivation(FBehaviorTreeSearchData& SearchData)
 {
 	if (bNotifyOnSearch || bNotifyTick)
 	{
+		// 得到实例
 		UBTNode* NodeOb = bCreateNodeInstance ? GetNodeInstance(SearchData) : this;
 		if (NodeOb)
 		{
@@ -36,6 +38,7 @@ void UBTService::NotifyParentActivation(FBehaviorTreeSearchData& SearchData)
 
 			if (bNotifyTick)
 			{
+				// 
 				const float RemainingTime = bRestartTimerOnEachActivation ? 0.0f : GetNextTickRemainingTime(NodeMemory);
 				if (RemainingTime <= 0.0f)
 				{
@@ -56,6 +59,7 @@ void UBTService::NotifyParentActivation(FBehaviorTreeSearchData& SearchData)
 	}
 }
 
+// 得到tick间隔的描述
 FString UBTService::GetStaticTickIntervalDescription() const
 {
 	FString IntervalDesc = (RandomDeviation > 0.0f) ?
@@ -65,11 +69,13 @@ FString UBTService::GetStaticTickIntervalDescription() const
 	return FString::Printf(TEXT("tick every %s"), *IntervalDesc);
 }
 
+// 服务节点的描述
 FString UBTService::GetStaticServiceDescription() const
 {
 	return GetStaticTickIntervalDescription();
 }
 
+// 得到静态的描述
 FString UBTService::GetStaticDescription() const
 {
 	return FString::Printf(TEXT("%s: %s"), *UBehaviorTreeTypes::GetShortTypeName(this), *GetStaticServiceDescription());
@@ -83,9 +89,10 @@ FName UBTService::GetNodeIconName() const
 }
 
 #endif // WITH_EDITOR
-
+// 设置下一个tick时间
 void UBTService::ScheduleNextTick(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory)
 {
+	// 随机下一次的时间
 	const float NextTickTime = FMath::FRandRange(FMath::Max(0.0f, Interval - RandomDeviation), (Interval + RandomDeviation));
 	SetNextTickTime(NodeMemory, NextTickTime);
 }

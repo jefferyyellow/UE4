@@ -166,7 +166,7 @@ public:
 		EBTNodeResult::Type ContinueWithResult, bool bStoreForDebugger = true);
 
 	/** request execution change: helpers for decorator nodes */
-	// 要求执行变更：装饰节点
+	// 要求执行改变：装饰节点辅助函数
 	void RequestExecution(const UBTDecorator* RequestedBy);
 
 	/** request execution change: helpers for task nodes */

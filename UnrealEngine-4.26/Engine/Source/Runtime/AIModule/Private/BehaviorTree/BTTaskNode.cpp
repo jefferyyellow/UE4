@@ -21,15 +21,18 @@ EBTNodeResult::Type UBTTaskNode::AbortTask(UBehaviorTreeComponent& OwnerComp, ui
 {
 	return EBTNodeResult::Aborted;
 }
-
+// 实例化节点包装函数：ExecuteTask
 EBTNodeResult::Type UBTTaskNode::WrappedExecuteTask(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory) const
 {
+	// 如果是实例化节点，需要找到对应的实例化内存
 	const UBTNode* NodeOb = bCreateNodeInstance ? GetNodeInstance(OwnerComp, NodeMemory) : this;
 	return NodeOb ? ((UBTTaskNode*)NodeOb)->ExecuteTask(OwnerComp, NodeMemory) : EBTNodeResult::Failed;
 }
 
+// 实例化节点包装函数：AbortTask
 EBTNodeResult::Type UBTTaskNode::WrappedAbortTask(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory) const
 {
+	// 如果是实例化节点，需要找到对应的实例化内存
 	UBTNode* NodeOb = const_cast<UBTNode*>(bCreateNodeInstance ? GetNodeInstance(OwnerComp, NodeMemory) : this);
 	UBTTaskNode* TaskNodeOb = static_cast<UBTTaskNode*>(NodeOb);
 	EBTNodeResult::Type Result = TaskNodeOb ? TaskNodeOb->AbortTask(OwnerComp, NodeMemory) : EBTNodeResult::Aborted;
@@ -37,10 +40,12 @@ EBTNodeResult::Type UBTTaskNode::WrappedAbortTask(UBehaviorTreeComponent& OwnerC
 	return Result;
 }
 
+// 实例化节点的包装函数：TickTask
 bool UBTTaskNode::WrappedTickTask(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory, float DeltaSeconds, float& NextNeededDeltaTime) const
 {
 	if (bNotifyTick)
 	{
+		// 如果是实例化节点，需要找到对应的实例化内存
 		const UBTNode* NodeOb = bCreateNodeInstance ? GetNodeInstance(OwnerComp, NodeMemory) : this;
 		if (NodeOb)
 		{
@@ -52,18 +57,21 @@ bool UBTTaskNode::WrappedTickTask(UBehaviorTreeComponent& OwnerComp, uint8* Node
 	return false;
 }
 
+// 实例化节点的包装函数：OnTaskFinished
 void UBTTaskNode::WrappedOnTaskFinished(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory, EBTNodeResult::Type TaskResult) const
 {
+	// 如果是实例化节点，需要找到对应的实例化内存
 	UBTNode* NodeOb = const_cast<UBTNode*>(bCreateNodeInstance ? GetNodeInstance(OwnerComp, NodeMemory) : this);
 
 	if (NodeOb)
 	{
 		UBTTaskNode* TaskNodeOb = static_cast<UBTTaskNode*>(NodeOb);
+		// 需要通知任务结束
 		if (TaskNodeOb->bNotifyTaskFinished)
 		{
 			TaskNodeOb->OnTaskFinished(OwnerComp, NodeMemory, TaskResult);
 		}
-
+		// 处理GameTasks
 		if (TaskNodeOb->bOwnsGameplayTasks && OwnerComp.GetAIOwner())
 		{
 			UGameplayTasksComponent* GTComp = OwnerComp.GetAIOwner()->GetGameplayTasksComponent();
@@ -75,6 +83,7 @@ void UBTTaskNode::WrappedOnTaskFinished(UBehaviorTreeComponent& OwnerComp, uint8
 	}
 }
 
+// 接收信息
 void UBTTaskNode::ReceivedMessage(UBrainComponent* BrainComp, const FAIMessage& Message)
 {
 	UBehaviorTreeComponent* OwnerComp = static_cast<UBehaviorTreeComponent*>(BrainComp);
@@ -103,13 +112,16 @@ void UBTTaskNode::OnTaskFinished(UBehaviorTreeComponent& OwnerComp, uint8* NodeM
 	// empty in base class
 }
 
+// 处理消息
 void UBTTaskNode::OnMessage(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory, FName Message, int32 RequestID, bool bSuccess)
 {
 	const EBTTaskStatus::Type Status = OwnerComp.GetTaskStatus(this);
+	// 如果节点是激活状态，则完成任务
 	if (Status == EBTTaskStatus::Active)
 	{
 		FinishLatentTask(OwnerComp, bSuccess ? EBTNodeResult::Succeeded : EBTNodeResult::Failed);
 	}
+	// 如果节点是中止状态，则完成中止
 	else if (Status == EBTTaskStatus::Aborting)
 	{
 		FinishLatentAbort(OwnerComp);
@@ -166,6 +178,7 @@ void UBTTaskNode::OnGameplayTaskDeactivated(UGameplayTask& Task)
 	{
 		// this is a super-default behavior. Specific task will surely like to 
 		// handle this themselves, finishing with specific result
+		// 这是一个基类的默认行为，具体任务一定会喜欢自己处理，以特定的结果结束
 		const EBTTaskStatus::Type Status = BTComp->GetTaskStatus(this);
 		FinishLatentTask(*BTComp, Status == EBTTaskStatus::Aborting ? EBTNodeResult::Aborted : EBTNodeResult::Succeeded);
 	}
